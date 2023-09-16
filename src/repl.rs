@@ -30,7 +30,9 @@ pub fn run_prompt() -> InterpreterResult<()> {
         };
 
         println!("{:#?}", scanner.tokens);
-        break;
+        if scanner.tokens.is_empty() {
+            break;
+        }
     }
 
     Ok(())
