@@ -4,6 +4,7 @@ use std::io::Write;
 use std::path::Path;
 
 use crate::errors::InterpreterError;
+use crate::parser::Parser;
 use crate::scanner::Scanner;
 
 pub type InterpreterResult<T> = Result<T, InterpreterError>;
@@ -53,6 +54,6 @@ pub fn run_file(path: &str) -> InterpreterResult<()> {
         }
     };
 
-    println!("{:#?}", scanner.tokens);
+    let mut parser = Parser::new(scanner.tokens);
     Ok(())
 }

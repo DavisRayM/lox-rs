@@ -1,4 +1,5 @@
 pub mod errors;
+pub mod parser;
 pub mod repl;
 pub mod scanner;
 pub mod tokens;
