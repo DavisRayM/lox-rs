@@ -1,4 +1,7 @@
-use crate::tokens::{Token, TokenType};
+use crate::{
+    errors::ScanError,
+    tokens::{Token, TokenType},
+};
 
 /// Scanner is used for lexically analysis string content
 ///
@@ -12,28 +15,36 @@ use crate::tokens::{Token, TokenType};
 pub struct Scanner {
     pub tokens: Vec<Token>,
     source: Vec<char>,
-    current_pos: u16,
-    current_row: u16,
+    current_pos: usize,
+    current_col: usize,
+    current_row: usize,
 }
 
+pub type ScannerResult<T> = Result<T, ScanError>;
+
 impl Scanner {
-    pub fn new(source: String) -> Result<Self, String> {
+    pub fn new(source: String) -> ScannerResult<Self> {
         let mut scanner = Self {
             tokens: Vec::new(),
             source: source.chars().collect(),
             current_pos: 0,
             current_row: 0,
+            current_col: 0,
         };
 
         if let Err(e) = scanner.scan_tokens() {
-            return Err(e);
+            return Err(ScanError {
+                line: scanner.current_row,
+                column: scanner.current_pos,
+                msg: e,
+            });
         }
 
         Ok(scanner)
     }
 
     fn scan_tokens(&mut self) -> Result<(), String> {
-        while (self.current_pos as usize) < self.source.len() {
+        while (self.current_pos) < self.source.len() {
             match self.scan() {
                 Ok(_) => {}
                 Err(e) => return Err(e),
@@ -48,13 +59,14 @@ impl Scanner {
             lexeme,
             literal,
             line: self.current_row,
-            column: self.current_pos,
+            column: self.current_col,
         };
         self.tokens.push(token);
     }
 
     fn scan(&mut self) -> Result<(), String> {
-        let start = self.source[self.current_pos as usize];
+        let start = self.source[self.current_pos];
+        let mut is_newline = false;
         match start {
             ')' => self.add_token(TokenType::RightParen, start.into(), None),
             '(' => self.add_token(TokenType::LeftParen, start.into(), None),
@@ -66,50 +78,43 @@ impl Scanner {
             ';' => self.add_token(TokenType::SemiColon, start.into(), None),
             '/' => self.add_token(TokenType::Slash, start.into(), None),
             '+' => self.add_token(TokenType::Plus, start.into(), None),
-            '\\' => {
-                let next_token = self.source[self.current_pos as usize + 1];
-                match next_token {
-                    'n' => {
-                        self.current_row += 1;
-                        self.current_pos = 0;
-                    }
-                    't' => {}
-                    'r' => {}
-                    _ => {
-                        return Err("unexpected character".into());
-                    }
-                };
-                self.current_pos += 1;
+            '\n' => {
+                is_newline = true;
             }
+            '\t' => {}
+            '\r' => {}
             ' ' => {}
             '*' => self.add_token(TokenType::Star, start.into(), None),
             '=' => self.add_token(TokenType::Equal, start.into(), None),
             '!' => {
-                let next_pos = self.current_pos as usize + 1;
+                let next_pos = self.current_pos + 1;
                 if next_pos < self.source.len() && self.source[next_pos] == '=' {
                     let lexeme: String = self.capture_lexeme(next_pos + 1);
                     self.add_token(TokenType::NotEqual, lexeme, None);
                     self.current_pos += 1;
+                    self.current_col += 1;
                 } else {
                     self.add_token(TokenType::Not, start.into(), None);
                 }
             }
             '<' => {
-                let next_pos = self.current_pos as usize + 1;
+                let next_pos = self.current_pos + 1;
                 if next_pos < self.source.len() && self.source[next_pos] == '=' {
                     let lexeme: String = self.capture_lexeme(next_pos + 1);
                     self.add_token(TokenType::LessEqual, lexeme, None);
                     self.current_pos += 1;
+                    self.current_col += 1;
                 } else {
                     self.add_token(TokenType::Less, start.into(), None);
                 }
             }
             '>' => {
-                let next_pos = self.current_pos as usize + 1;
+                let next_pos = self.current_pos + 1;
                 if next_pos < self.source.len() && self.source[next_pos] == '=' {
                     let lexeme: String = self.capture_lexeme(next_pos + 1);
                     self.add_token(TokenType::GreaterEqual, lexeme, None);
                     self.current_pos += 1;
+                    self.current_col += 1;
                 } else {
                     self.add_token(TokenType::Greater, start.into(), None);
                 }
@@ -118,7 +123,7 @@ impl Scanner {
                 let pos = self.current_pos;
 
                 let start_pos = pos + 1;
-                let mut end_pos = start_pos as usize;
+                let mut end_pos = start_pos;
 
                 loop {
                     if end_pos >= self.source.len() {
@@ -136,52 +141,73 @@ impl Scanner {
 
                 self.current_pos = pos;
                 self.add_token(TokenType::String, lexeme.clone(), Some(lexeme));
-                self.current_pos = end_pos as u16;
+                self.current_pos = end_pos;
+                self.current_col += end_pos - pos;
             }
             _ => {
-                let start_pos = self.current_pos as usize;
-                let mut lexeme: Vec<char> = Vec::new();
+                let start_pos = self.current_pos;
 
                 if Self::is_digit(self.source[start_pos]) {
-                    lexeme.push(self.source[start_pos]);
-
-                    let mut curr_pos = start_pos;
-                    if curr_pos < self.source.len() {
-                        while (curr_pos + 1) < self.source.len()
-                            && Self::is_numeric(self.source[curr_pos + 1])
-                        {
-                            curr_pos += 1;
-                            lexeme.push(self.source[curr_pos]);
-                        }
-                    }
-
-                    let lexeme = lexeme.iter().collect::<String>();
-                    self.add_token(TokenType::Number, lexeme.clone(), Some(lexeme));
-                    self.current_pos = curr_pos as u16;
+                    self.add_digit(start_pos);
                 } else if Self::is_alphabetic(self.source[start_pos]) {
-                    lexeme.push(self.source[start_pos]);
-
-                    let mut curr_pos = start_pos;
-                    if curr_pos < self.source.len() {
-                        while (curr_pos + 1) < self.source.len()
-                            && Self::is_alphanumeric(self.source[curr_pos + 1])
-                        {
-                            curr_pos += 1;
-                            lexeme.push(self.source[curr_pos]);
-                        }
-                    }
-
-                    let lexeme = lexeme.iter().collect::<String>();
-                    let t = self.process_identifier(&lexeme);
-                    self.add_token(t, lexeme.clone(), Some(lexeme));
-                    self.current_pos = curr_pos as u16;
+                    self.add_identifier(start_pos);
+                } else {
+                    return Err(format!("unexpected character `{}`", self.source[start_pos]));
                 }
             }
         };
 
         self.current_pos += 1;
+        if is_newline {
+            self.current_row += 1;
+            self.current_col = 0;
+        } else {
+            self.current_col += 1;
+        }
 
         Ok(())
+    }
+
+    fn add_identifier(&mut self, start_pos: usize) -> usize {
+        let mut lexeme: Vec<char> = Vec::new();
+        lexeme.push(self.source[start_pos]);
+
+        let mut curr_pos = start_pos;
+        if curr_pos < self.source.len() {
+            while (curr_pos + 1) < self.source.len()
+                && Self::is_alphanumeric(self.source[curr_pos + 1])
+            {
+                curr_pos += 1;
+                lexeme.push(self.source[curr_pos]);
+            }
+        }
+
+        let lexeme = lexeme.iter().collect::<String>();
+        let t = self.process_identifier(&lexeme);
+        self.add_token(t, lexeme.clone(), Some(lexeme));
+        self.current_pos = curr_pos;
+        self.current_col += curr_pos - start_pos;
+        curr_pos
+    }
+
+    fn add_digit(&mut self, start_pos: usize) -> usize {
+        let mut lexeme: Vec<char> = Vec::new();
+
+        lexeme.push(self.source[start_pos]);
+        let mut curr_pos = start_pos;
+        if curr_pos < self.source.len() {
+            while (curr_pos + 1) < self.source.len() && Self::is_numeric(self.source[curr_pos + 1])
+            {
+                curr_pos += 1;
+                lexeme.push(self.source[curr_pos]);
+            }
+        }
+
+        let lexeme = lexeme.iter().collect::<String>();
+        self.add_token(TokenType::Number, lexeme.clone(), Some(lexeme));
+        self.current_pos = curr_pos;
+        self.current_col += curr_pos - start_pos;
+        curr_pos
     }
 
     fn process_identifier(&mut self, identifier: &str) -> TokenType {
@@ -220,7 +246,7 @@ impl Scanner {
     }
 
     fn capture_lexeme(&self, end: usize) -> String {
-        self.source[self.current_pos as usize..end].iter().collect()
+        self.source[self.current_pos..end].iter().collect()
     }
 }
 
@@ -228,7 +254,7 @@ impl Scanner {
 mod tests {
     use super::*;
 
-    fn assert_expected_tokens(scanner: Scanner, expected: Vec<(TokenType, String, u16, u16)>) {
+    fn assert_expected_tokens(scanner: Scanner, expected: Vec<(TokenType, String, usize, usize)>) {
         assert_eq!(
             scanner.tokens.len(),
             expected.len(),
@@ -328,11 +354,11 @@ mod tests {
             (TokenType::Equal, "=".to_string(), 0, 8),
             (TokenType::Number, "23".to_string(), 0, 10),
             (TokenType::SemiColon, ";".to_string(), 0, 12),
-            (TokenType::Print, "print".to_string(), 0, 14),
-            (TokenType::LeftParen, "(".to_string(), 0, 19),
-            (TokenType::Identifier, "num".to_string(), 0, 20),
-            (TokenType::RightParen, ")".to_string(), 0, 23),
-            (TokenType::SemiColon, ";".to_string(), 0, 24),
+            (TokenType::Print, "print".to_string(), 1, 0),
+            (TokenType::LeftParen, "(".to_string(), 1, 5),
+            (TokenType::Identifier, "num".to_string(), 1, 6),
+            (TokenType::RightParen, ")".to_string(), 1, 9),
+            (TokenType::SemiColon, ";".to_string(), 1, 10),
         ];
         assert_expected_tokens(scanner, expected);
     }
