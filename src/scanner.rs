@@ -140,7 +140,7 @@ impl Scanner {
                     let mut curr_pos = start_pos;
                     if curr_pos < self.source.len() {
                         while (curr_pos + 1) < self.source.len()
-                            && Self::is_digit(self.source[curr_pos + 1])
+                            && Self::is_numeric(self.source[curr_pos + 1])
                         {
                             curr_pos += 1;
                             lexeme.push(self.source[curr_pos]);
@@ -199,6 +199,10 @@ impl Scanner {
         c.is_numeric()
     }
 
+    fn is_numeric(c: char) -> bool {
+        c == '.' || c.is_numeric()
+    }
+
     fn is_alphabetic(c: char) -> bool {
         c.is_alphabetic()
     }
@@ -254,12 +258,13 @@ mod tests {
 
     #[test]
     fn captures_string_and_number_tokens() {
-        let content = "\"Hey there 2\" 254";
+        let content = "\"Hey there 2\" 25 12.32";
         let scanner = Scanner::new(content.into()).unwrap();
 
         let expected = vec![
             (TokenType::String, "Hey there 2".to_string(), 0, 0),
-            (TokenType::Number, "254".to_string(), 0, 14),
+            (TokenType::Number, "25".to_string(), 0, 14),
+            (TokenType::Number, "12.32".to_string(), 0, 17),
         ];
         assert_expected_tokens(scanner, expected);
     }
