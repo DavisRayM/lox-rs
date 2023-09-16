@@ -5,6 +5,7 @@ pub struct Scanner {
     pub tokens: Vec<Token>,
     source: Vec<char>,
     current_pos: u16,
+    current_row: u16,
 }
 
 impl Scanner {
@@ -13,6 +14,7 @@ impl Scanner {
             tokens: Vec::new(),
             source: source.chars().collect(),
             current_pos: 0,
+            current_row: 0,
         };
 
         if let Err(e) = scanner.scan_tokens() {
@@ -37,7 +39,8 @@ impl Scanner {
             _type,
             lexeme,
             literal,
-            line: self.current_pos,
+            line: self.current_row,
+            column: self.current_pos,
         };
         self.tokens.push(token);
     }
@@ -58,7 +61,10 @@ impl Scanner {
             '\\' => {
                 let next_token = self.source[self.current_pos as usize + 1];
                 match next_token {
-                    'n' => {}
+                    'n' => {
+                        self.current_row += 1;
+                        self.current_pos = 0;
+                    }
                     't' => {}
                     'r' => {}
                     _ => {
@@ -210,7 +216,7 @@ impl Scanner {
 mod tests {
     use super::*;
 
-    fn assert_expected_tokens(scanner: Scanner, expected: Vec<(TokenType, String, u16)>) {
+    fn assert_expected_tokens(scanner: Scanner, expected: Vec<(TokenType, String, u16, u16)>) {
         assert_eq!(
             scanner.tokens.len(),
             expected.len(),
@@ -221,6 +227,7 @@ mod tests {
             assert_eq!(token._type, expected[idx].0);
             assert_eq!(token.lexeme, expected[idx].1);
             assert_eq!(token.line, expected[idx].2);
+            assert_eq!(token.column, expected[idx].3);
         }
     }
 
@@ -230,17 +237,17 @@ mod tests {
         let scanner = Scanner::new(content.into()).unwrap();
 
         let expected = vec![
-            (TokenType::LeftParen, "(".to_string(), 0),
-            (TokenType::RightParen, ")".to_string(), 1),
-            (TokenType::LeftBrace, "{".to_string(), 2),
-            (TokenType::RightBrace, "}".to_string(), 3),
-            (TokenType::Comma, ",".to_string(), 4),
-            (TokenType::Dot, ".".to_string(), 5),
-            (TokenType::Minus, "-".to_string(), 6),
-            (TokenType::Plus, "+".to_string(), 7),
-            (TokenType::SemiColon, ";".to_string(), 8),
-            (TokenType::Slash, "/".to_string(), 9),
-            (TokenType::Star, "*".to_string(), 11),
+            (TokenType::LeftParen, "(".to_string(), 0, 0),
+            (TokenType::RightParen, ")".to_string(), 0, 1),
+            (TokenType::LeftBrace, "{".to_string(), 0, 2),
+            (TokenType::RightBrace, "}".to_string(), 0, 3),
+            (TokenType::Comma, ",".to_string(), 0, 4),
+            (TokenType::Dot, ".".to_string(), 0, 5),
+            (TokenType::Minus, "-".to_string(), 0, 6),
+            (TokenType::Plus, "+".to_string(), 0, 7),
+            (TokenType::SemiColon, ";".to_string(), 0, 8),
+            (TokenType::Slash, "/".to_string(), 0, 9),
+            (TokenType::Star, "*".to_string(), 0, 11),
         ];
         assert_expected_tokens(scanner, expected);
     }
@@ -251,8 +258,8 @@ mod tests {
         let scanner = Scanner::new(content.into()).unwrap();
 
         let expected = vec![
-            (TokenType::String, "Hey there 2".to_string(), 0),
-            (TokenType::Number, "254".to_string(), 14),
+            (TokenType::String, "Hey there 2".to_string(), 0, 0),
+            (TokenType::Number, "254".to_string(), 0, 14),
         ];
         assert_expected_tokens(scanner, expected);
     }
@@ -263,10 +270,10 @@ mod tests {
         let scanner = Scanner::new(content.into()).unwrap();
 
         let eexpected = vec![
-            (TokenType::LessEqual, "<=".to_string(), 0),
-            (TokenType::Less, "<".to_string(), 2),
-            (TokenType::GreaterEqual, ">=".to_string(), 3),
-            (TokenType::Greater, ">".to_string(), 5),
+            (TokenType::LessEqual, "<=".to_string(), 0, 0),
+            (TokenType::Less, "<".to_string(), 0, 2),
+            (TokenType::GreaterEqual, ">=".to_string(), 0, 3),
+            (TokenType::Greater, ">".to_string(), 0, 5),
         ];
         assert_expected_tokens(scanner, eexpected);
     }
@@ -277,22 +284,22 @@ mod tests {
         let scanner = Scanner::new(content.into()).unwrap();
 
         let expected = vec![
-            (TokenType::And, "and".to_string(), 0),
-            (TokenType::Class, "class".to_string(), 4),
-            (TokenType::Else, "else".to_string(), 10),
-            (TokenType::False, "false".to_string(), 15),
-            (TokenType::For, "for".to_string(), 21),
-            (TokenType::If, "if".to_string(), 25),
-            (TokenType::Or, "or".to_string(), 28),
-            (TokenType::Print, "print".to_string(), 31),
-            (TokenType::Return, "return".to_string(), 37),
-            (TokenType::Super, "super".to_string(), 44),
-            (TokenType::True, "true".to_string(), 50),
-            (TokenType::Let, "let".to_string(), 55),
-            (TokenType::While, "while".to_string(), 59),
-            (TokenType::Identifier, "some_identifier".to_string(), 65),
-            (TokenType::Identifier, "someIdentifier".to_string(), 81),
-            (TokenType::Identifier, "identifier32".to_string(), 96),
+            (TokenType::And, "and".to_string(), 0, 0),
+            (TokenType::Class, "class".to_string(), 0, 4),
+            (TokenType::Else, "else".to_string(), 0, 10),
+            (TokenType::False, "false".to_string(), 0, 15),
+            (TokenType::For, "for".to_string(), 0, 21),
+            (TokenType::If, "if".to_string(), 0, 25),
+            (TokenType::Or, "or".to_string(), 0, 28),
+            (TokenType::Print, "print".to_string(), 0, 31),
+            (TokenType::Return, "return".to_string(), 0, 37),
+            (TokenType::Super, "super".to_string(), 0, 44),
+            (TokenType::True, "true".to_string(), 0, 50),
+            (TokenType::Let, "let".to_string(), 0, 55),
+            (TokenType::While, "while".to_string(), 0, 59),
+            (TokenType::Identifier, "some_identifier".to_string(), 0, 65),
+            (TokenType::Identifier, "someIdentifier".to_string(), 0, 81),
+            (TokenType::Identifier, "identifier32".to_string(), 0, 96),
         ];
         assert_expected_tokens(scanner, expected);
     }
@@ -303,16 +310,16 @@ mod tests {
         let scanner = Scanner::new(content.into()).unwrap();
 
         let expected = vec![
-            (TokenType::Let, "let".to_string(), 0),
-            (TokenType::Identifier, "num".to_string(), 4),
-            (TokenType::Equal, "=".to_string(), 8),
-            (TokenType::Number, "23".to_string(), 10),
-            (TokenType::SemiColon, ";".to_string(), 12),
-            (TokenType::Print, "print".to_string(), 14),
-            (TokenType::LeftParen, "(".to_string(), 19),
-            (TokenType::Identifier, "num".to_string(), 20),
-            (TokenType::RightParen, ")".to_string(), 23),
-            (TokenType::SemiColon, ";".to_string(), 24),
+            (TokenType::Let, "let".to_string(), 0, 0),
+            (TokenType::Identifier, "num".to_string(), 0, 4),
+            (TokenType::Equal, "=".to_string(), 0, 8),
+            (TokenType::Number, "23".to_string(), 0, 10),
+            (TokenType::SemiColon, ";".to_string(), 0, 12),
+            (TokenType::Print, "print".to_string(), 0, 14),
+            (TokenType::LeftParen, "(".to_string(), 0, 19),
+            (TokenType::Identifier, "num".to_string(), 0, 20),
+            (TokenType::RightParen, ")".to_string(), 0, 23),
+            (TokenType::SemiColon, ";".to_string(), 0, 24),
         ];
         assert_expected_tokens(scanner, expected);
     }

@@ -49,4 +49,5 @@ pub struct Token {
     pub lexeme: String,
     pub literal: Option<String>,
     pub line: u16,
+    pub column: u16,
 }
