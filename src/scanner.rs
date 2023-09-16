@@ -28,14 +28,14 @@ impl Scanner {
             tokens: Vec::new(),
             source: source.chars().collect(),
             current_pos: 0,
-            current_row: 0,
-            current_col: 0,
+            current_row: 1,
+            current_col: 1,
         };
 
         if let Err(e) = scanner.scan_tokens() {
             return Err(ScanError {
                 line: scanner.current_row,
-                column: scanner.current_pos,
+                column: scanner.current_col,
                 msg: e,
             });
         }
@@ -160,7 +160,7 @@ impl Scanner {
         self.current_pos += 1;
         if is_newline {
             self.current_row += 1;
-            self.current_col = 0;
+            self.current_col = 1;
         } else {
             self.current_col += 1;
         }
@@ -275,17 +275,17 @@ mod tests {
         let scanner = Scanner::new(content.into()).unwrap();
 
         let expected = vec![
-            (TokenType::LeftParen, "(".to_string(), 0, 0),
-            (TokenType::RightParen, ")".to_string(), 0, 1),
-            (TokenType::LeftBrace, "{".to_string(), 0, 2),
-            (TokenType::RightBrace, "}".to_string(), 0, 3),
-            (TokenType::Comma, ",".to_string(), 0, 4),
-            (TokenType::Dot, ".".to_string(), 0, 5),
-            (TokenType::Minus, "-".to_string(), 0, 6),
-            (TokenType::Plus, "+".to_string(), 0, 7),
-            (TokenType::SemiColon, ";".to_string(), 0, 8),
-            (TokenType::Slash, "/".to_string(), 0, 9),
-            (TokenType::Star, "*".to_string(), 0, 11),
+            (TokenType::LeftParen, "(".to_string(), 1, 1),
+            (TokenType::RightParen, ")".to_string(), 1, 2),
+            (TokenType::LeftBrace, "{".to_string(), 1, 3),
+            (TokenType::RightBrace, "}".to_string(), 1, 4),
+            (TokenType::Comma, ",".to_string(), 1, 5),
+            (TokenType::Dot, ".".to_string(), 1, 6),
+            (TokenType::Minus, "-".to_string(), 1, 7),
+            (TokenType::Plus, "+".to_string(), 1, 8),
+            (TokenType::SemiColon, ";".to_string(), 1, 9),
+            (TokenType::Slash, "/".to_string(), 1, 10),
+            (TokenType::Star, "*".to_string(), 1, 12),
         ];
         assert_expected_tokens(scanner, expected);
     }
@@ -296,9 +296,9 @@ mod tests {
         let scanner = Scanner::new(content.into()).unwrap();
 
         let expected = vec![
-            (TokenType::String, "Hey there 2".to_string(), 0, 0),
-            (TokenType::Number, "25".to_string(), 0, 14),
-            (TokenType::Number, "12.32".to_string(), 0, 17),
+            (TokenType::String, "Hey there 2".to_string(), 1, 1),
+            (TokenType::Number, "25".to_string(), 1, 15),
+            (TokenType::Number, "12.32".to_string(), 1, 18),
         ];
         assert_expected_tokens(scanner, expected);
     }
@@ -309,10 +309,10 @@ mod tests {
         let scanner = Scanner::new(content.into()).unwrap();
 
         let eexpected = vec![
-            (TokenType::LessEqual, "<=".to_string(), 0, 0),
-            (TokenType::Less, "<".to_string(), 0, 2),
-            (TokenType::GreaterEqual, ">=".to_string(), 0, 3),
-            (TokenType::Greater, ">".to_string(), 0, 5),
+            (TokenType::LessEqual, "<=".to_string(), 1, 1),
+            (TokenType::Less, "<".to_string(), 1, 3),
+            (TokenType::GreaterEqual, ">=".to_string(), 1, 4),
+            (TokenType::Greater, ">".to_string(), 1, 6),
         ];
         assert_expected_tokens(scanner, eexpected);
     }
@@ -323,22 +323,22 @@ mod tests {
         let scanner = Scanner::new(content.into()).unwrap();
 
         let expected = vec![
-            (TokenType::And, "and".to_string(), 0, 0),
-            (TokenType::Class, "class".to_string(), 0, 4),
-            (TokenType::Else, "else".to_string(), 0, 10),
-            (TokenType::False, "false".to_string(), 0, 15),
-            (TokenType::For, "for".to_string(), 0, 21),
-            (TokenType::If, "if".to_string(), 0, 25),
-            (TokenType::Or, "or".to_string(), 0, 28),
-            (TokenType::Print, "print".to_string(), 0, 31),
-            (TokenType::Return, "return".to_string(), 0, 37),
-            (TokenType::Super, "super".to_string(), 0, 44),
-            (TokenType::True, "true".to_string(), 0, 50),
-            (TokenType::Let, "let".to_string(), 0, 55),
-            (TokenType::While, "while".to_string(), 0, 59),
-            (TokenType::Identifier, "some_identifier".to_string(), 0, 65),
-            (TokenType::Identifier, "someIdentifier".to_string(), 0, 81),
-            (TokenType::Identifier, "identifier32".to_string(), 0, 96),
+            (TokenType::And, "and".to_string(), 1, 1),
+            (TokenType::Class, "class".to_string(), 1, 5),
+            (TokenType::Else, "else".to_string(), 1, 11),
+            (TokenType::False, "false".to_string(), 1, 16),
+            (TokenType::For, "for".to_string(), 1, 22),
+            (TokenType::If, "if".to_string(), 1, 26),
+            (TokenType::Or, "or".to_string(), 1, 29),
+            (TokenType::Print, "print".to_string(), 1, 32),
+            (TokenType::Return, "return".to_string(), 1, 38),
+            (TokenType::Super, "super".to_string(), 1, 45),
+            (TokenType::True, "true".to_string(), 1, 51),
+            (TokenType::Let, "let".to_string(), 1, 56),
+            (TokenType::While, "while".to_string(), 1, 60),
+            (TokenType::Identifier, "some_identifier".to_string(), 1, 66),
+            (TokenType::Identifier, "someIdentifier".to_string(), 1, 82),
+            (TokenType::Identifier, "identifier32".to_string(), 1, 97),
         ];
         assert_expected_tokens(scanner, expected);
     }
@@ -349,16 +349,16 @@ mod tests {
         let scanner = Scanner::new(content.into()).unwrap();
 
         let expected = vec![
-            (TokenType::Let, "let".to_string(), 0, 0),
-            (TokenType::Identifier, "num".to_string(), 0, 4),
-            (TokenType::Equal, "=".to_string(), 0, 8),
-            (TokenType::Number, "23".to_string(), 0, 10),
-            (TokenType::SemiColon, ";".to_string(), 0, 12),
-            (TokenType::Print, "print".to_string(), 1, 0),
-            (TokenType::LeftParen, "(".to_string(), 1, 5),
-            (TokenType::Identifier, "num".to_string(), 1, 6),
-            (TokenType::RightParen, ")".to_string(), 1, 9),
-            (TokenType::SemiColon, ";".to_string(), 1, 10),
+            (TokenType::Let, "let".to_string(), 1, 1),
+            (TokenType::Identifier, "num".to_string(), 1, 5),
+            (TokenType::Equal, "=".to_string(), 1, 9),
+            (TokenType::Number, "23".to_string(), 1, 11),
+            (TokenType::SemiColon, ";".to_string(), 1, 13),
+            (TokenType::Print, "print".to_string(), 2, 1),
+            (TokenType::LeftParen, "(".to_string(), 2, 6),
+            (TokenType::Identifier, "num".to_string(), 2, 7),
+            (TokenType::RightParen, ")".to_string(), 2, 10),
+            (TokenType::SemiColon, ";".to_string(), 2, 11),
         ];
         assert_expected_tokens(scanner, expected);
     }
