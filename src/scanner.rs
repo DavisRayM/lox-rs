@@ -3,6 +3,34 @@ use crate::{
     tokens::{Token, TokenType},
 };
 
+const SINGLE_CHAR_TOKENS: [TokenType; 11] = [
+    TokenType::RightParen,
+    TokenType::LeftParen,
+    TokenType::RightBrace,
+    TokenType::LeftBrace,
+    TokenType::Comma,
+    TokenType::Dot,
+    TokenType::Minus,
+    TokenType::SemiColon,
+    TokenType::Slash,
+    TokenType::Plus,
+    TokenType::Star,
+];
+
+const FORMATTING_TOKENS: [TokenType; 4] = [
+    TokenType::NewLine,
+    TokenType::Tab,
+    TokenType::CarriageReturn,
+    TokenType::Space,
+];
+
+const LOGICAL_TOKENS: [TokenType; 4] = [
+    TokenType::Not,
+    TokenType::Less,
+    TokenType::Greater,
+    TokenType::Equal,
+];
+
 /// Scanner is used for lexically analysis string content
 ///
 /// The scanner performs lexical analysis on string content afterwhich it
@@ -15,7 +43,7 @@ use crate::{
 pub struct Scanner {
     pub tokens: Vec<Token>,
     source: Vec<char>,
-    current_pos: usize,
+    next: usize,
     current_col: usize,
     current_row: usize,
 }
@@ -27,7 +55,7 @@ impl Scanner {
         let mut scanner = Self {
             tokens: Vec::new(),
             source: source.chars().collect(),
-            current_pos: 0,
+            next: 0,
             current_row: 1,
             current_col: 1,
         };
@@ -43,174 +71,150 @@ impl Scanner {
         Ok(scanner)
     }
 
+    fn peek_next(&self) -> Option<TokenType> {
+        let next_pos = self.next + 1;
+
+        if next_pos >= self.source.len() {
+            return None;
+        }
+
+        let token_type = TokenType::try_from(self.source[next_pos]);
+        match token_type {
+            Ok(token_type) => Some(token_type),
+            Err(_) => None,
+        }
+    }
+
     fn scan_tokens(&mut self) -> Result<(), String> {
-        while (self.current_pos) < self.source.len() {
-            match self.scan() {
-                Ok(_) => {}
-                Err(e) => return Err(e),
+        while self.next < self.source.len() {
+            let mut lexeme: Vec<char> = vec![self.source[self.next]];
+            let mut token_type: TokenType = match TokenType::try_from(lexeme[0]) {
+                Ok(token_type) => token_type,
+                Err(e) => {
+                    return Err(e);
+                }
             };
+            let mut is_new_line = false;
+            let initial_pos = self.next;
+
+            if SINGLE_CHAR_TOKENS
+                .to_vec()
+                .iter()
+                .any(|_type| *_type == token_type)
+            {
+                self.add_token(token_type, lexeme.iter().collect::<String>());
+            } else if FORMATTING_TOKENS
+                .to_vec()
+                .iter()
+                .any(|_type| *_type == token_type)
+            {
+                if token_type == TokenType::NewLine {
+                    is_new_line = true;
+                }
+            } else if LOGICAL_TOKENS
+                .to_vec()
+                .iter()
+                .any(|_type| *_type == token_type)
+            {
+                if self.peek_next().is_some() && self.peek_next().unwrap() == TokenType::Equal {
+                    token_type = match token_type {
+                        TokenType::Not => TokenType::NotEqual,
+                        TokenType::Less => TokenType::LessEqual,
+                        TokenType::Greater => TokenType::GreaterEqual,
+                        TokenType::Equal => TokenType::EqualEqual,
+                        _ => return Err("fatal error: unknown token".into()),
+                    };
+                    lexeme.push(self.source[self.next + 1]);
+                    self.next += 1;
+                }
+                self.add_token(token_type, lexeme.iter().collect::<String>());
+            } else {
+                if token_type != TokenType::Identifier {
+                    return Err("something went horribly wrong!".into());
+                }
+
+                token_type = match self.consume_indentifier(&mut lexeme) {
+                    Ok(token_type) => token_type,
+                    Err(e) => return Err(e),
+                };
+                self.add_token(token_type, lexeme.iter().collect::<String>());
+            }
+
+            if is_new_line {
+                self.current_row += 1;
+                self.current_col = 0;
+            }
+            self.next += 1;
+            self.current_col += self.next - initial_pos;
         }
         Ok(())
     }
 
-    fn add_token(&mut self, _type: TokenType, lexeme: String, literal: Option<String>) {
+    fn consume_indentifier(&mut self, lexeme: &mut Vec<char>) -> Result<TokenType, String> {
+        let char_rep = lexeme[0];
+        if char_rep == '"' {
+            lexeme.clear();
+            loop {
+                let next_pos = self.next + 1;
+
+                if next_pos >= self.source.len() {
+                    return Err("unclosed string missing closing `\"`".into());
+                }
+
+                if self.source[next_pos] == '"' {
+                    self.next += 1;
+                    break;
+                }
+
+                lexeme.push(self.source[next_pos]);
+                self.next += 1;
+            }
+
+            Ok(TokenType::String)
+        } else if Self::is_digit(char_rep) {
+            loop {
+                let next_pos = self.next + 1;
+
+                if self.peek_next().is_none() || !Self::is_numeric(self.source[next_pos]) {
+                    break;
+                } else {
+                    lexeme.push(self.source[next_pos]);
+                    self.next += 1;
+                }
+            }
+
+            Ok(TokenType::Number)
+        } else if Self::is_alphabetic(char_rep) {
+            loop {
+                let next_pos = self.next + 1;
+
+                if self.peek_next().is_none() {
+                    break;
+                } else if Self::is_alphanumeric(self.source[next_pos]) {
+                    lexeme.push(self.source[next_pos]);
+                    self.next += 1;
+                } else {
+                    break;
+                }
+            }
+
+            Ok(Self::process_identifier(&lexeme.iter().collect::<String>()))
+        } else {
+            return Err("unknown character".into());
+        }
+    }
+
+    fn add_token(&mut self, _type: TokenType, lexeme: String) {
         let token = Token {
             _type,
             lexeme,
-            literal,
             line: self.current_row,
             column: self.current_col,
         };
         self.tokens.push(token);
     }
 
-    fn scan(&mut self) -> Result<(), String> {
-        let start = self.source[self.current_pos];
-        let mut is_newline = false;
-        match start {
-            ')' => self.add_token(TokenType::RightParen, start.into(), None),
-            '(' => self.add_token(TokenType::LeftParen, start.into(), None),
-            '}' => self.add_token(TokenType::RightBrace, start.into(), None),
-            '{' => self.add_token(TokenType::LeftBrace, start.into(), None),
-            ',' => self.add_token(TokenType::Comma, start.into(), None),
-            '.' => self.add_token(TokenType::Dot, start.into(), None),
-            '-' => self.add_token(TokenType::Minus, start.into(), None),
-            ';' => self.add_token(TokenType::SemiColon, start.into(), None),
-            '/' => self.add_token(TokenType::Slash, start.into(), None),
-            '+' => self.add_token(TokenType::Plus, start.into(), None),
-            '\n' => {
-                is_newline = true;
-            }
-            '\t' => {}
-            '\r' => {}
-            ' ' => {}
-            '*' => self.add_token(TokenType::Star, start.into(), None),
-            '=' => self.add_token(TokenType::Equal, start.into(), None),
-            '!' => {
-                let next_pos = self.current_pos + 1;
-                if next_pos < self.source.len() && self.source[next_pos] == '=' {
-                    let lexeme: String = self.capture_lexeme(next_pos + 1);
-                    self.add_token(TokenType::NotEqual, lexeme, None);
-                    self.current_pos += 1;
-                    self.current_col += 1;
-                } else {
-                    self.add_token(TokenType::Not, start.into(), None);
-                }
-            }
-            '<' => {
-                let next_pos = self.current_pos + 1;
-                if next_pos < self.source.len() && self.source[next_pos] == '=' {
-                    let lexeme: String = self.capture_lexeme(next_pos + 1);
-                    self.add_token(TokenType::LessEqual, lexeme, None);
-                    self.current_pos += 1;
-                    self.current_col += 1;
-                } else {
-                    self.add_token(TokenType::Less, start.into(), None);
-                }
-            }
-            '>' => {
-                let next_pos = self.current_pos + 1;
-                if next_pos < self.source.len() && self.source[next_pos] == '=' {
-                    let lexeme: String = self.capture_lexeme(next_pos + 1);
-                    self.add_token(TokenType::GreaterEqual, lexeme, None);
-                    self.current_pos += 1;
-                    self.current_col += 1;
-                } else {
-                    self.add_token(TokenType::Greater, start.into(), None);
-                }
-            }
-            '"' => {
-                let pos = self.current_pos;
-
-                let start_pos = pos + 1;
-                let mut end_pos = start_pos;
-
-                loop {
-                    if end_pos >= self.source.len() {
-                        return Err("unclosed string; missing closing `\"`".into());
-                    }
-
-                    if self.source[end_pos] == '"' {
-                        break;
-                    }
-                    end_pos += 1;
-                }
-
-                self.current_pos = start_pos;
-                let lexeme: String = self.capture_lexeme(end_pos);
-
-                self.current_pos = pos;
-                self.add_token(TokenType::String, lexeme.clone(), Some(lexeme));
-                self.current_pos = end_pos;
-                self.current_col += end_pos - pos;
-            }
-            _ => {
-                let start_pos = self.current_pos;
-
-                if Self::is_digit(self.source[start_pos]) {
-                    self.add_digit(start_pos);
-                } else if Self::is_alphabetic(self.source[start_pos]) {
-                    self.add_identifier(start_pos);
-                } else {
-                    return Err(format!("unexpected character `{}`", self.source[start_pos]));
-                }
-            }
-        };
-
-        self.current_pos += 1;
-        if is_newline {
-            self.current_row += 1;
-            self.current_col = 1;
-        } else {
-            self.current_col += 1;
-        }
-
-        Ok(())
-    }
-
-    fn add_identifier(&mut self, start_pos: usize) -> usize {
-        let mut lexeme: Vec<char> = Vec::new();
-        lexeme.push(self.source[start_pos]);
-
-        let mut curr_pos = start_pos;
-        if curr_pos < self.source.len() {
-            while (curr_pos + 1) < self.source.len()
-                && Self::is_alphanumeric(self.source[curr_pos + 1])
-            {
-                curr_pos += 1;
-                lexeme.push(self.source[curr_pos]);
-            }
-        }
-
-        let lexeme = lexeme.iter().collect::<String>();
-        let t = self.process_identifier(&lexeme);
-        self.add_token(t, lexeme.clone(), Some(lexeme));
-        self.current_pos = curr_pos;
-        self.current_col += curr_pos - start_pos;
-        curr_pos
-    }
-
-    fn add_digit(&mut self, start_pos: usize) -> usize {
-        let mut lexeme: Vec<char> = Vec::new();
-
-        lexeme.push(self.source[start_pos]);
-        let mut curr_pos = start_pos;
-        if curr_pos < self.source.len() {
-            while (curr_pos + 1) < self.source.len() && Self::is_numeric(self.source[curr_pos + 1])
-            {
-                curr_pos += 1;
-                lexeme.push(self.source[curr_pos]);
-            }
-        }
-
-        let lexeme = lexeme.iter().collect::<String>();
-        self.add_token(TokenType::Number, lexeme.clone(), Some(lexeme));
-        self.current_pos = curr_pos;
-        self.current_col += curr_pos - start_pos;
-        curr_pos
-    }
-
-    fn process_identifier(&mut self, identifier: &str) -> TokenType {
+    fn process_identifier(identifier: &str) -> TokenType {
         match identifier {
             "and" => TokenType::And,
             "class" => TokenType::Class,
@@ -243,10 +247,6 @@ impl Scanner {
 
     fn is_alphanumeric(c: char) -> bool {
         c != ' ' && (c.is_alphanumeric() || c == '_')
-    }
-
-    fn capture_lexeme(&self, end: usize) -> String {
-        self.source[self.current_pos..end].iter().collect()
     }
 }
 
