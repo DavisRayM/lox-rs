@@ -14,6 +14,10 @@ USAGE:
 ";
 
 fn main() -> Result<(), Box<dyn Error>> {
+    run_repl()
+}
+
+fn run_repl() -> Result<(), Box<dyn Error>> {
     let args: Vec<String> = std::env::args().collect();
     if args.len() > 2 {
         println!("{}", USAGE);

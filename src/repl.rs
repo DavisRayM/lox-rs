@@ -53,7 +53,8 @@ pub fn run_file(path: &str) -> InterpreterResult<()> {
             });
         }
     };
-
     let mut parser = Parser::new(scanner.tokens);
+    println!("{:#?}", parser.parse_expression());
+
     Ok(())
 }
