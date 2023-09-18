@@ -94,10 +94,14 @@ impl Interpreter {
         })
     }
 
-    pub fn interpret(&mut self) -> Result<(), InterpreterError> {
+    pub fn set_content(&mut self, content: String) {
+        self.content = content;
+    }
+
+    pub fn interpret(&mut self, strict: bool) -> Result<(), InterpreterError> {
         let scanner =
             Scanner::new(&self.content).map_err(|e| InterpreterError { msg: e.to_string() })?;
-        let mut parser = Parser::new(scanner.tokens);
+        let mut parser = Parser::new(scanner.tokens, strict);
         let statements = parser
             .parse()
             .map_err(|e| InterpreterError { msg: e.to_string() })?;
@@ -151,6 +155,7 @@ impl Interpreter {
             }
             Statement::Variable(expr) => {
                 if let Literal::Variable(name) = expr.evaluate()? {
+                    println!("Got {}", name);
                     Ok(self.get_from_env(name))
                 } else {
                     Ok(None)

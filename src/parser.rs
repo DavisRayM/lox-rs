@@ -59,11 +59,16 @@ pub type ParserResult<T> = Result<T, ParserError>;
 pub struct Parser {
     current: usize,
     source: Vec<Token>,
+    strict_mode: bool,
 }
 
 impl Parser {
-    pub fn new(source: Vec<Token>) -> Self {
-        Self { source, current: 0 }
+    pub fn new(source: Vec<Token>, strict_mode: bool) -> Self {
+        Self {
+            source,
+            current: 0,
+            strict_mode,
+        }
     }
 
     pub fn parse(&mut self) -> ParserResult<Vec<Statement>> {
@@ -94,7 +99,11 @@ impl Parser {
             let name = self.consume();
             self.check_and_consume(TokenType::Equal)?;
             let initializer = self.parse_expression()?;
-            self.check_and_consume(TokenType::SemiColon)?;
+            if self.strict_mode {
+                self.check_and_consume(TokenType::SemiColon)?;
+            } else if self.matches(vec![TokenType::SemiColon]) {
+                self.consume();
+            }
             Ok(Statement::Assign(name, initializer))
         }
     }
@@ -104,7 +113,11 @@ impl Parser {
             self.parse_block()
         } else {
             let expr = self.parse_expression()?;
-            self.check_and_consume(TokenType::SemiColon)?;
+            if self.strict_mode {
+                self.check_and_consume(TokenType::SemiColon)?;
+            } else if self.matches(vec![TokenType::SemiColon]) {
+                self.consume();
+            }
             Ok(Statement::Expression(expr))
         }
     }
@@ -298,7 +311,7 @@ mod tests {
     fn assert_statement_scenarios(scenarios: Vec<(String, String)>) {
         for (scenario, expected) in scenarios.iter() {
             let tokens = Scanner::new(scenario).unwrap().tokens;
-            let mut parser = Parser::new(tokens);
+            let mut parser = Parser::new(tokens, true);
             let statements = parser.parse().unwrap();
 
             let mut actual = String::new();
@@ -313,7 +326,7 @@ mod tests {
     fn assert_expression_scenarios(scenarios: Vec<(&str, String)>) {
         for (scenario, expected) in scenarios {
             let tokens = Scanner::new(scenario.into()).unwrap().tokens;
-            let mut parser = Parser::new(tokens);
+            let mut parser = Parser::new(tokens, false);
             let expression: String = parser.parse_expression().unwrap().into();
 
             assert_eq!(expression, expected);

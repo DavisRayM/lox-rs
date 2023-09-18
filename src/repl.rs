@@ -7,6 +7,7 @@ use crate::Interpreter;
 pub type InterpreterResult<T> = Result<T, InterpreterError>;
 
 pub fn run_prompt() -> InterpreterResult<()> {
+    let mut interpreter = Interpreter::new("".into());
     loop {
         print!("> ");
         io::stdout().flush().unwrap();
@@ -19,8 +20,8 @@ pub fn run_prompt() -> InterpreterResult<()> {
         if statement.len() <= 1 {
             break;
         }
-        let mut interpreter = Interpreter::new(statement);
-        interpreter.interpret()?
+        interpreter.set_content(statement);
+        interpreter.interpret(false)?
     }
 
     Ok(())
@@ -29,6 +30,6 @@ pub fn run_prompt() -> InterpreterResult<()> {
 pub fn run_file(path: &str) -> InterpreterResult<()> {
     let mut interpreter =
         Interpreter::from_file(path.into()).map_err(|e| InterpreterError { msg: e.to_string() })?;
-    interpreter.interpret()?;
+    interpreter.interpret(true)?;
     Ok(())
 }

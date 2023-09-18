@@ -187,7 +187,7 @@ mod tests {
 
     fn evaluate_statement(expr: &str) -> String {
         let scanner = Scanner::new(expr.into()).unwrap();
-        let mut parser = Parser::new(scanner.tokens);
+        let mut parser = Parser::new(scanner.tokens, true);
         let statements = parser.parse().unwrap();
         let mut out = String::new();
 
