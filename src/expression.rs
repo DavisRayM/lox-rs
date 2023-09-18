@@ -183,10 +183,7 @@ impl From<Expression> for String {
 
 #[cfg(test)]
 mod tests {
-    use crate::{
-        parser::{Parser, Statement},
-        scanner::Scanner,
-    };
+    use crate::{get_statement_string, parser::Parser, scanner::Scanner};
 
     fn evaluate_statement(expr: &str) -> String {
         let scanner = Scanner::new(expr.into()).unwrap();
@@ -195,20 +192,7 @@ mod tests {
         let mut out = String::new();
 
         for statement in statements {
-            match statement {
-                Statement::Assign(token, literal) => {
-                    let str_rep: String = literal.into();
-                    out.push_str(&format!("let {} = {}", token.lexeme, str_rep));
-                }
-                Statement::Variable(expr) => {
-                    let str_rep: String = expr.evaluate().unwrap().into();
-                    out.push_str(&str_rep)
-                }
-                Statement::Expression(expr) => {
-                    let str_rep: String = expr.evaluate().unwrap().into();
-                    out.push_str(&str_rep)
-                }
-            }
+            out.push_str(&get_statement_string(statement));
         }
 
         out

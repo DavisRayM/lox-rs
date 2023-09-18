@@ -16,7 +16,7 @@ pub fn run_prompt() -> InterpreterResult<()> {
             .read_line(&mut statement)
             .expect("failed to read in statement");
 
-        if statement.is_empty() {
+        if statement.len() <= 1 {
             break;
         }
         let mut interpreter = Interpreter::new(statement);

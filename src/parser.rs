@@ -17,7 +17,9 @@
 ///
 ///   declaration -> "var" IDENTIFIER ( "=" expression )? ";" ;
 ///
-///   statement -> exprStmt ;
+///   statement -> exprStmt | block;
+///
+///   block -> "{" declaration "}";
 ///
 ///   exprStmt -> expression ";" ;
 ///
@@ -48,6 +50,7 @@ pub enum Statement {
     Expression(Expression),
     Variable(Expression),
     Assign(Token, Expression),
+    Block(Vec<Statement>),
 }
 
 pub type ParserResult<T> = Result<T, ParserError>;
@@ -96,13 +99,32 @@ impl Parser {
         }
     }
 
-    pub fn parse_statement(&mut self) -> ParserResult<Statement> {
-        let expr = self.parse_expression()?;
-        self.check_and_consume(TokenType::SemiColon)?;
-        Ok(Statement::Expression(expr))
+    fn parse_statement(&mut self) -> ParserResult<Statement> {
+        if self.matches(vec![TokenType::LeftBrace]) {
+            self.parse_block()
+        } else {
+            let expr = self.parse_expression()?;
+            self.check_and_consume(TokenType::SemiColon)?;
+            Ok(Statement::Expression(expr))
+        }
     }
 
-    pub fn parse_assignment(&mut self) -> ParserResult<Expression> {
+    fn is_at_end(&self) -> bool {
+        self.current >= self.source.len()
+    }
+
+    fn parse_block(&mut self) -> ParserResult<Statement> {
+        let mut statements: Vec<Statement> = Vec::new();
+
+        while !self.matches(vec![TokenType::LeftBrace]) && !self.is_at_end() {
+            statements.push(self.parse_declaration()?);
+        }
+
+        self.check_and_consume(TokenType::RightBrace)?;
+        Ok(Statement::Block(statements))
+    }
+
+    fn parse_assignment(&mut self) -> ParserResult<Expression> {
         let expr = self.parse_equality()?;
 
         if self.matches(vec![TokenType::Equal]) {
@@ -269,8 +291,8 @@ impl Parser {
 
 #[cfg(test)]
 mod tests {
-
     use super::*;
+    use crate::get_statement_string;
     use crate::scanner::Scanner;
 
     fn assert_statement_scenarios(scenarios: Vec<(String, String)>) {
@@ -281,20 +303,7 @@ mod tests {
 
             let mut actual = String::new();
             for statement in statements {
-                match statement {
-                    Statement::Assign(token, expr) => {
-                        let str_rep: String = expr.evaluate().unwrap().into();
-                        actual.push_str(&format!("let {} = {}", token.lexeme, str_rep));
-                    }
-                    Statement::Variable(expr) => {
-                        let str_rep: String = expr.evaluate().unwrap().into();
-                        actual.push_str(&str_rep)
-                    }
-                    Statement::Expression(expr) => {
-                        let str_rep: String = expr.evaluate().unwrap().into();
-                        actual.push_str(&str_rep)
-                    }
-                }
+                actual.push_str(&get_statement_string(statement));
             }
 
             assert_eq!(actual, expected.to_owned());
@@ -314,12 +323,12 @@ mod tests {
     #[test]
     fn parses_assignment_statements_successfuly() {
         let scenarios: Vec<(String, String)> = vec![
-            ("let num = 25;".into(), "let num = 25".into()),
+            ("let num = 25;".into(), "let num = 25;".into()),
             ("num;".into(), "num".into()),
             ("2 * 4;".into(), "8".into()),
             (
                 "let div_result = 4 / 2;".into(),
-                "let div_result = 2".into(),
+                "let div_result = 2;".into(),
             ),
         ];
         assert_statement_scenarios(scenarios);
