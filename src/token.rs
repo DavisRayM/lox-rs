@@ -146,13 +146,12 @@ pub enum Literal {
 }
 
 impl Token {
-    pub fn literal<T: Sized + 'static>(&self) -> Literal {
-        match self._type {
-            TokenType::String => Literal::String(self.lexeme.clone()),
-            TokenType::Number => Literal::Number(self.lexeme.parse::<i32>().unwrap()),
-            TokenType::True => Literal::Boolean(true),
-            TokenType::False => Literal::Boolean(false),
-            _ => Literal::Generic(self.lexeme.clone()),
+    pub fn new(lexeme: &str, line: usize, column: usize, _type: TokenType) -> Self {
+        Self {
+            lexeme: lexeme.to_string(),
+            line,
+            column,
+            _type,
         }
     }
 }
