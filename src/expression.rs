@@ -5,13 +5,13 @@ pub enum Expression {
     Unary(Token, Box<Expression>),
     Binary(Box<Expression>, Token, Box<Expression>),
     Grouping(Box<Expression>),
-    Literal(String),
+    Literal(Token),
 }
 
 impl Expression {
     pub fn evaluate(&self) -> String {
         match self {
-            Expression::Literal(val) => val.to_owned(),
+            Expression::Literal(val) => val.lexeme.clone(),
             Expression::Grouping(expr) => expr.evaluate().to_owned(),
             Expression::Unary(operator, expr) => {
                 let right = expr.evaluate();
@@ -56,13 +56,13 @@ impl From<Expression> for String {
             Expression::Binary(expr, token, r_expr) => {
                 let expr: String = expr.as_ref().to_owned().into();
                 let r_expr: String = r_expr.as_ref().to_owned().into();
-                format!("({} {} {})", token.lexeme, expr, r_expr)
+                format!("({} {} {})", expr, token.lexeme, r_expr)
             }
             Expression::Grouping(expr) => {
                 let expr: String = expr.as_ref().to_owned().into();
                 format!("(group {})", expr)
             }
-            Expression::Literal(token) => token,
+            Expression::Literal(token) => token.lexeme,
         }
     }
 }

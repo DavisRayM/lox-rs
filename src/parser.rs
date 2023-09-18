@@ -59,10 +59,20 @@ impl Parser {
         self.source[self.current - 1].clone()
     }
 
+    fn matches(&self, options: Vec<TokenType>) -> bool {
+        options.iter().any(|option| option == &self.peek()._type)
+    }
+
+    fn consume(&mut self) -> Token {
+        let token = self.peek();
+        self.current += 1;
+        token
+    }
+
     fn advance_if_match(&mut self, options: Vec<TokenType>) -> bool {
-        let result = options.iter().any(|option| option == &self.peek()._type);
+        let result = self.matches(options);
         if result {
-            self.current += 1;
+            self.consume();
         }
         result
     }
@@ -134,12 +144,12 @@ impl Parser {
     }
 
     fn parse_primary(&mut self) -> ParserResult<Expression> {
-        if self.advance_if_match(vec![TokenType::False]) {
-            Ok(Expression::Literal("false".into()))
-        } else if self.advance_if_match(vec![TokenType::True]) {
-            Ok(Expression::Literal("true".into()))
-        } else if self.advance_if_match(vec![TokenType::Number, TokenType::String]) {
-            Ok(Expression::Literal(self.previous().lexeme))
+        if self.matches(vec![TokenType::False]) {
+            Ok(Expression::Literal(self.consume()))
+        } else if self.matches(vec![TokenType::True]) {
+            Ok(Expression::Literal(self.consume()))
+        } else if self.matches(vec![TokenType::Number, TokenType::String]) {
+            Ok(Expression::Literal(self.consume()))
         } else if self.advance_if_match(vec![TokenType::LeftParen]) {
             let expr = self.parse_expression()?;
             self.check_and_consume(TokenType::RightParen)?;
@@ -154,16 +164,16 @@ impl Parser {
     }
 
     fn check_and_consume(&mut self, token_type: TokenType) -> ParserResult<()> {
-        let token = &self.source[self.current];
+        let token = self.peek();
         if token._type != token_type {
             return Err(ParserError::new(
                 "expected {}",
-                token,
+                &token,
                 ExceptionType::RuntimeException,
             ));
         }
 
-        self.current += 1;
+        self.consume();
         Ok(())
     }
 }
@@ -187,16 +197,31 @@ mod tests {
     #[test]
     fn parses_primary_expressions() {
         let scenarios: Vec<(&str, String)> = vec![
-            ("false", Expression::Literal("false".into()).into()),
-            ("true", Expression::Literal("true".into()).into()),
-            ("2000", Expression::Literal("2000".into()).into()),
+            (
+                "false",
+                Expression::Literal(Token::new("false", 1, 1, TokenType::False)).into(),
+            ),
+            (
+                "true",
+                Expression::Literal(Token::new("true", 1, 1, TokenType::True)).into(),
+            ),
+            (
+                "2000",
+                Expression::Literal(Token::new("2000", 1, 1, TokenType::Number)).into(),
+            ),
             (
                 "\"Hi there\"",
-                Expression::Literal("Hi there".into()).into(),
+                Expression::Literal(Token::new("Hi there", 1, 1, TokenType::String)).into(),
             ),
             (
                 "( 2000 )",
-                Expression::Grouping(Box::new(Expression::Literal("2000".into()))).into(),
+                Expression::Grouping(Box::new(Expression::Literal(Token::new(
+                    "2000",
+                    1,
+                    1,
+                    TokenType::Number,
+                ))))
+                .into(),
             ),
         ];
         assert_expression_scenarios(scenarios);
@@ -214,7 +239,12 @@ mod tests {
                         _type: TokenType::Minus,
                         column: 1,
                     },
-                    Box::new(Expression::Literal("1".into())),
+                    Box::new(Expression::Literal(Token::new(
+                        "1",
+                        1,
+                        2,
+                        TokenType::Number,
+                    ))),
                 )
                 .into(),
             ),
@@ -227,7 +257,12 @@ mod tests {
                         _type: TokenType::Not,
                         column: 1,
                     },
-                    Box::new(Expression::Literal("true".into())),
+                    Box::new(Expression::Literal(Token::new(
+                        "true",
+                        1,
+                        2,
+                        TokenType::True,
+                    ))),
                 )
                 .into(),
             ),
@@ -242,28 +277,48 @@ mod tests {
             (
                 "2 * 5",
                 Expression::Binary(
-                    Box::new(Expression::Literal("2".into())),
+                    Box::new(Expression::Literal(Token::new(
+                        "2",
+                        1,
+                        1,
+                        TokenType::Number,
+                    ))),
                     Token {
                         line: 1,
                         lexeme: "*".into(),
                         _type: TokenType::Star,
                         column: 3,
                     },
-                    Box::new(Expression::Literal("5".into())),
+                    Box::new(Expression::Literal(Token::new(
+                        "5",
+                        1,
+                        1,
+                        TokenType::Number,
+                    ))),
                 )
                 .into(),
             ),
             (
                 "25 / 5",
                 Expression::Binary(
-                    Box::new(Expression::Literal("25".into())),
+                    Box::new(Expression::Literal(Token::new(
+                        "25",
+                        1,
+                        1,
+                        TokenType::Number,
+                    ))),
                     Token {
                         line: 1,
                         lexeme: "/".into(),
                         _type: TokenType::Slash,
                         column: 4,
                     },
-                    Box::new(Expression::Literal("5".into())),
+                    Box::new(Expression::Literal(Token::new(
+                        "5",
+                        1,
+                        1,
+                        TokenType::Number,
+                    ))),
                 )
                 .into(),
             ),
@@ -278,28 +333,48 @@ mod tests {
             (
                 "4 == 4",
                 Expression::Binary(
-                    Box::new(Expression::Literal("4".into())),
+                    Box::new(Expression::Literal(Token::new(
+                        "4",
+                        1,
+                        1,
+                        TokenType::Number,
+                    ))),
                     Token {
                         line: 1,
                         lexeme: "==".into(),
                         _type: TokenType::EqualEqual,
-                        column: 6,
+                        column: 3,
                     },
-                    Box::new(Expression::Literal("4".into())),
+                    Box::new(Expression::Literal(Token::new(
+                        "4",
+                        1,
+                        5,
+                        TokenType::Number,
+                    ))),
                 )
                 .into(),
             ),
             (
                 "24.5 != 30",
                 Expression::Binary(
-                    Box::new(Expression::Literal("24.5".into())),
+                    Box::new(Expression::Literal(Token::new(
+                        "24.5",
+                        1,
+                        1,
+                        TokenType::Number,
+                    ))),
                     Token {
                         line: 1,
                         lexeme: "!=".into(),
                         _type: TokenType::NotEqual,
                         column: 6,
                     },
-                    Box::new(Expression::Literal("30".into())),
+                    Box::new(Expression::Literal(Token::new(
+                        "30",
+                        1,
+                        1,
+                        TokenType::Number,
+                    ))),
                 )
                 .into(),
             ),
@@ -314,28 +389,48 @@ mod tests {
             (
                 "24.5 + 30",
                 Expression::Binary(
-                    Box::new(Expression::Literal("24.5".into())),
+                    Box::new(Expression::Literal(Token::new(
+                        "24.5",
+                        1,
+                        1,
+                        TokenType::Number,
+                    ))),
                     Token {
                         line: 1,
                         lexeme: "+".into(),
                         _type: TokenType::Plus,
                         column: 6,
                     },
-                    Box::new(Expression::Literal("30".into())),
+                    Box::new(Expression::Literal(Token::new(
+                        "30",
+                        1,
+                        8,
+                        TokenType::Number,
+                    ))),
                 )
                 .into(),
             ),
             (
                 "24.5 - 30",
                 Expression::Binary(
-                    Box::new(Expression::Literal("24.5".into())),
+                    Box::new(Expression::Literal(Token::new(
+                        "24.5",
+                        1,
+                        1,
+                        TokenType::Number,
+                    ))),
                     Token {
                         line: 1,
                         lexeme: "-".into(),
                         _type: TokenType::Minus,
                         column: 6,
                     },
-                    Box::new(Expression::Literal("30".into())),
+                    Box::new(Expression::Literal(Token::new(
+                        "30",
+                        1,
+                        8,
+                        TokenType::Number,
+                    ))),
                 )
                 .into(),
             ),
@@ -350,84 +445,144 @@ mod tests {
             (
                 "true || false",
                 Expression::Binary(
-                    Box::new(Expression::Literal("true".into())),
+                    Box::new(Expression::Literal(Token::new(
+                        "true",
+                        1,
+                        1,
+                        TokenType::True,
+                    ))),
                     Token {
                         line: 1,
                         lexeme: "||".into(),
                         _type: TokenType::Or,
                         column: 6,
                     },
-                    Box::new(Expression::Literal("false".into())),
+                    Box::new(Expression::Literal(Token::new(
+                        "false",
+                        1,
+                        9,
+                        TokenType::False,
+                    ))),
                 )
                 .into(),
             ),
             (
                 "true && true",
                 Expression::Binary(
-                    Box::new(Expression::Literal("true".into())),
+                    Box::new(Expression::Literal(Token::new(
+                        "true",
+                        1,
+                        1,
+                        TokenType::True,
+                    ))),
                     Token {
                         line: 1,
                         lexeme: "&&".into(),
                         _type: TokenType::And,
                         column: 6,
                     },
-                    Box::new(Expression::Literal("true".into())),
+                    Box::new(Expression::Literal(Token::new(
+                        "true",
+                        1,
+                        9,
+                        TokenType::True,
+                    ))),
                 )
                 .into(),
             ),
             (
                 "1 < 2",
                 Expression::Binary(
-                    Box::new(Expression::Literal("1".into())),
+                    Box::new(Expression::Literal(Token::new(
+                        "1",
+                        1,
+                        1,
+                        TokenType::Number,
+                    ))),
                     Token {
                         line: 1,
                         lexeme: "<".into(),
                         _type: TokenType::Less,
-                        column: 6,
+                        column: 3,
                     },
-                    Box::new(Expression::Literal("2".into())),
+                    Box::new(Expression::Literal(Token::new(
+                        "2",
+                        1,
+                        5,
+                        TokenType::Number,
+                    ))),
                 )
                 .into(),
             ),
             (
                 "2 <= 2",
                 Expression::Binary(
-                    Box::new(Expression::Literal("2".into())),
+                    Box::new(Expression::Literal(Token::new(
+                        "2",
+                        1,
+                        1,
+                        TokenType::Number,
+                    ))),
                     Token {
                         line: 1,
                         lexeme: "<=".into(),
                         _type: TokenType::LessEqual,
-                        column: 6,
+                        column: 3,
                     },
-                    Box::new(Expression::Literal("2".into())),
+                    Box::new(Expression::Literal(Token::new(
+                        "2",
+                        1,
+                        5,
+                        TokenType::Number,
+                    ))),
                 )
                 .into(),
             ),
             (
                 "3 > 4",
                 Expression::Binary(
-                    Box::new(Expression::Literal("3".into())),
+                    Box::new(Expression::Literal(Token::new(
+                        "3",
+                        1,
+                        1,
+                        TokenType::Number,
+                    ))),
                     Token {
                         line: 1,
                         lexeme: ">".into(),
                         _type: TokenType::Greater,
-                        column: 6,
+                        column: 3,
                     },
-                    Box::new(Expression::Literal("4".into())),
+                    Box::new(Expression::Literal(Token::new(
+                        "4",
+                        1,
+                        5,
+                        TokenType::Number,
+                    ))),
                 )
                 .into(),
             ),
             (
                 "4 >= 10",
                 Expression::Binary(
-                    Box::new(Expression::Literal("4".into())),
+                    Box::new(Expression::Literal(Token::new(
+                        "4",
+                        1,
+                        1,
+                        TokenType::Number,
+                    ))),
                     Token {
                         line: 1,
                         lexeme: ">=".into(),
                         _type: TokenType::GreaterEqual,
-                        column: 6,
+                        column: 3,
                     },
-                    Box::new(Expression::Literal("10".into())),
+                    Box::new(Expression::Literal(Token::new(
+                        "10",
+                        1,
+                        5,
+                        TokenType::Number,
+                    ))),
                 )
                 .into(),
             ),
