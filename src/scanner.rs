@@ -44,7 +44,7 @@ pub struct Scanner {
 pub type ScannerResult<T> = Result<T, ScanError>;
 
 impl Scanner {
-    pub fn new(source: String) -> ScannerResult<Self> {
+    pub fn new(source: &str) -> ScannerResult<Self> {
         let mut scanner = Self {
             tokens: Vec::new(),
             source: source.chars().collect(),
