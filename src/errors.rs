@@ -4,18 +4,12 @@ use crate::token::Token;
 
 #[derive(Clone, Debug)]
 pub struct InterpreterError {
-    pub line: usize,
-    pub column: usize,
     pub msg: String,
 }
 
 impl fmt::Display for InterpreterError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "Line [{}] Column [{}]: {}",
-            self.line, self.column, self.msg
-        )
+        write!(f, "{}", self.msg)
     }
 }
 
