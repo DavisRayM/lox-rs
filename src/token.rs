@@ -1,3 +1,5 @@
+use core::fmt;
+
 /// Type of a token
 #[derive(Debug, Clone, PartialEq)]
 pub enum TokenType {
@@ -31,21 +33,70 @@ pub enum TokenType {
     LessEqual,
     Greater,
     GreaterEqual,
+    And,
+    Or,
 
     // Keywords
-    And,
     Class,
     Else,
     False,
     For,
     If,
-    Or,
     Print,
     Return,
     Super,
     True,
     Let,
     While,
+}
+
+impl fmt::Display for TokenType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let str_rep = match self {
+            TokenType::LeftParen => "(",
+            TokenType::RightParen => ")",
+            TokenType::LeftBrace => "{",
+            TokenType::RightBrace => "}",
+            TokenType::Comma => ",",
+            TokenType::Dot => ".",
+            TokenType::Minus => "-",
+            TokenType::Plus => "+",
+            TokenType::SemiColon => ";",
+            TokenType::Slash => "/",
+            TokenType::Star => "*",
+            TokenType::NewLine => "new line",
+            TokenType::Eof => "end of file",
+            TokenType::Tab => "tab",
+            TokenType::CarriageReturn => "return",
+            TokenType::Space => "space",
+            TokenType::Identifier => "identifier",
+            TokenType::String => "string",
+            TokenType::Number => "number",
+            TokenType::Not => "!",
+            TokenType::NotEqual => "!=",
+            TokenType::Equal => "=",
+            TokenType::EqualEqual => "==",
+            TokenType::Less => "<",
+            TokenType::LessEqual => "<=",
+            TokenType::Greater => ">",
+            TokenType::GreaterEqual => ">=",
+            TokenType::And => "&&",
+            TokenType::Class => "class",
+            TokenType::Else => "else",
+            TokenType::False => "false",
+            TokenType::For => "for",
+            TokenType::If => "if",
+            TokenType::Or => "||",
+            TokenType::Print => "print",
+            TokenType::Return => "return",
+            TokenType::Super => "super",
+            TokenType::True => "true",
+            TokenType::Let => "let",
+            TokenType::While => "while",
+        };
+
+        write!(f, "{}", str_rep)
+    }
 }
 
 impl TryFrom<char> for TokenType {

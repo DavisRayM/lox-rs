@@ -1,6 +1,6 @@
 use crate::{
     errors::ScanError,
-    tokens::{Token, TokenType},
+    token::{Token, TokenType},
 };
 
 const SINGLE_CHAR_TOKENS: [TokenType; 11] = [
