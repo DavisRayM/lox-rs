@@ -1,5 +1,6 @@
 use std::fmt;
 
+use crate::literal::Literal;
 use crate::token::{Token, TokenType};
 
 #[derive(Clone, Debug)]
@@ -35,26 +36,61 @@ pub enum Expression {
     Binary(Box<Expression>, Token, Box<Expression>),
     Grouping(Box<Expression>),
     Literal(Token),
+    Variable(Token),
+    Assignment(Token, Literal),
 }
 
 impl Expression {
-    pub fn evaluate(&self) -> Result<String, EvaluationError> {
+    pub fn evaluate(&self) -> Result<Literal, EvaluationError> {
         match self {
             Expression::Grouping(expr) => expr.evaluate(),
+            Expression::Variable(token) => {
+                if token._type == TokenType::Identifier {
+                    Ok(Literal::Variable(token.lexeme.clone()))
+                } else {
+                    Err(EvaluationError::new(
+                        "unexpected variable type",
+                        token.line,
+                        token.column,
+                    ))
+                }
+            }
+            Expression::Assignment(token, literal) => {
+                if token._type == TokenType::Identifier {
+                    let literal = literal.clone();
+                    Ok(Literal::Assignment(token.lexeme.clone(), Box::new(literal)))
+                } else {
+                    Err(EvaluationError::new(
+                        "unqualified variable name",
+                        token.line,
+                        token.column,
+                    ))
+                }
+            }
             Expression::Unary(token, expr) => {
                 let right = expr.evaluate()?;
                 match token._type {
                     TokenType::Minus => {
-                        let right = right.parse::<f32>().map_err(|_| {
-                            EvaluationError::new("expected a number", token.line, token.column)
-                        })?;
-                        Ok(format!("-{}", right))
+                        if let Literal::Number(value) = right {
+                            Ok(Literal::Number(-value))
+                        } else {
+                            Err(EvaluationError::new(
+                                "expected a number",
+                                token.line,
+                                token.column,
+                            ))
+                        }
                     }
                     TokenType::Not => {
-                        let right = right.parse::<bool>().map_err(|_| {
-                            EvaluationError::new("expected a boolean", token.line, token.column)
-                        })?;
-                        Ok(format!("{}", !right))
+                        if let Literal::Boolean(value) = right {
+                            Ok(Literal::Boolean(!value))
+                        } else {
+                            Err(EvaluationError::new(
+                                "expected a number",
+                                token.line,
+                                token.column,
+                            ))
+                        }
                     }
                     _ => Err(EvaluationError::new(
                         "unknown expression",
@@ -66,152 +102,57 @@ impl Expression {
             Expression::Binary(expr, token, rexpr) => {
                 let left = expr.evaluate()?;
                 let right = rexpr.evaluate()?;
+                let values = (left, right);
 
-                match token._type {
-                    TokenType::Plus => {
-                        let left = left.parse::<f32>().map_err(|_| {
-                            EvaluationError::new("expected a number", token.line, token.column)
-                        })?;
-                        let right = right.parse::<f32>().map_err(|_| {
-                            EvaluationError::new("expected a number", token.line, token.column)
-                        })?;
-
-                        Ok(format!("{}", left + right))
-                    }
-                    TokenType::Minus => {
-                        let left = left.parse::<f32>().map_err(|_| {
-                            EvaluationError::new("expected a number", token.line, token.column)
-                        })?;
-                        let right = right.parse::<f32>().map_err(|_| {
-                            EvaluationError::new("expected a number", token.line, token.column)
-                        })?;
-
-                        Ok(format!("{}", left - right))
-                    }
-                    TokenType::Star => {
-                        let left = left.parse::<f32>().map_err(|_| {
-                            EvaluationError::new("expected a number", token.line, token.column)
-                        })?;
-                        let right = right.parse::<f32>().map_err(|_| {
-                            EvaluationError::new("expected a number", token.line, token.column)
-                        })?;
-
-                        Ok(format!("{}", left * right))
-                    }
-                    TokenType::Slash => {
-                        let left = left.parse::<f32>().map_err(|_| {
-                            EvaluationError::new("expected a number", token.line, token.column)
-                        })?;
-                        let right = right.parse::<f32>().map_err(|_| {
-                            EvaluationError::new("expected a number", token.line, token.column)
-                        })?;
-
-                        Ok(format!("{}", left / right))
-                    }
-                    TokenType::Or => {
-                        let left = left.parse::<bool>().map_err(|_| {
-                            EvaluationError::new("expected a boolean", token.line, token.column)
-                        })?;
-                        let right = right.parse::<bool>().map_err(|_| {
-                            EvaluationError::new("expected a boolean", token.line, token.column)
-                        })?;
-
-                        Ok(format!("{}", left || right))
-                    }
-                    TokenType::Less => {
-                        let left = left.parse::<f32>().map_err(|_| {
-                            EvaluationError::new("expected a number", token.line, token.column)
-                        })?;
-                        let right = right.parse::<f32>().map_err(|_| {
-                            EvaluationError::new("expected a number", token.line, token.column)
-                        })?;
-
-                        Ok(format!("{}", left < right))
-                    }
-                    TokenType::LessEqual => {
-                        let left = left.parse::<f32>().map_err(|_| {
-                            EvaluationError::new("expected a number", token.line, token.column)
-                        })?;
-                        let right = right.parse::<f32>().map_err(|_| {
-                            EvaluationError::new("expected a number", token.line, token.column)
-                        })?;
-
-                        Ok(format!("{}", left <= right))
-                    }
-                    TokenType::Greater => {
-                        let left = left.parse::<f32>().map_err(|_| {
-                            EvaluationError::new("expected a number", token.line, token.column)
-                        })?;
-                        let right = right.parse::<f32>().map_err(|_| {
-                            EvaluationError::new("expected a number", token.line, token.column)
-                        })?;
-
-                        Ok(format!("{}", left > right))
-                    }
-                    TokenType::GreaterEqual => {
-                        let left = left.parse::<f32>().map_err(|_| {
-                            EvaluationError::new("expected a number", token.line, token.column)
-                        })?;
-                        let right = right.parse::<f32>().map_err(|_| {
-                            EvaluationError::new("expected a number", token.line, token.column)
-                        })?;
-
-                        Ok(format!("{}", left >= right))
-                    }
-                    TokenType::EqualEqual => {
-                        let left = left.parse::<f32>().map_err(|_| {
-                            EvaluationError::new("expected a number", token.line, token.column)
-                        })?;
-                        let right = right.parse::<f32>().map_err(|_| {
-                            EvaluationError::new("expected a number", token.line, token.column)
-                        })?;
-
-                        Ok(format!("{}", left == right))
-                    }
-                    TokenType::NotEqual => {
-                        let left = left.parse::<f32>().map_err(|_| {
-                            EvaluationError::new("expected a number", token.line, token.column)
-                        })?;
-                        let right = right.parse::<f32>().map_err(|_| {
-                            EvaluationError::new("expected a number", token.line, token.column)
-                        })?;
-
-                        Ok(format!("{}", left != right))
-                    }
-                    TokenType::And => {
-                        let left = left.parse::<bool>().map_err(|_| {
-                            EvaluationError::new("expected a boolean", token.line, token.column)
-                        })?;
-                        let right = right.parse::<bool>().map_err(|_| {
-                            EvaluationError::new("expected a boolean", token.line, token.column)
-                        })?;
-
-                        Ok(format!("{}", left && right))
-                    }
+                match values {
+                    (Literal::Number(left), Literal::Number(right)) => match token._type {
+                        TokenType::Plus => Ok(Literal::Number(left + right)),
+                        TokenType::Minus => Ok(Literal::Number(left - right)),
+                        TokenType::Star => Ok(Literal::Number(left * right)),
+                        TokenType::Slash => Ok(Literal::Number(left / right)),
+                        TokenType::LessEqual => Ok(Literal::Boolean(left <= right)),
+                        TokenType::Less => Ok(Literal::Boolean(left < right)),
+                        TokenType::GreaterEqual => Ok(Literal::Boolean(left >= right)),
+                        TokenType::Greater => Ok(Literal::Boolean(left > right)),
+                        TokenType::NotEqual => Ok(Literal::Boolean(left != right)),
+                        TokenType::EqualEqual => Ok(Literal::Boolean(left == right)),
+                        _ => todo!(),
+                    },
+                    (Literal::Boolean(left), Literal::Boolean(right)) => match token._type {
+                        TokenType::Or => Ok(Literal::Boolean(left || right)),
+                        TokenType::And => Ok(Literal::Boolean(left && right)),
+                        _ => todo!(),
+                    },
                     _ => Err(EvaluationError::new(
-                        "unknown expression",
+                        "unknown operator",
                         token.line,
                         token.column,
                     )),
                 }
             }
-            Expression::Literal(token) => {
-                match token._type {
-                    TokenType::Number => {
-                        token.lexeme.parse::<f32>().map_err(|_| {
-                            EvaluationError::new("expected a number", token.line, token.column)
-                        })?;
-                    }
-                    TokenType::True | TokenType::False => {
-                        token.lexeme.parse::<bool>().map_err(|_| {
-                            EvaluationError::new("expected a boolean", token.line, token.column)
-                        })?;
-                    }
-                    _ => {}
-                };
-
-                Ok(token.lexeme.clone())
-            }
+            Expression::Literal(token) => match token._type {
+                TokenType::Number => {
+                    let value = token.lexeme.parse::<f32>().map_err(|_| {
+                        EvaluationError::new("expected a number", token.line, token.column)
+                    })?;
+                    Ok(Literal::Number(value))
+                }
+                TokenType::True | TokenType::False => {
+                    let value = token.lexeme.parse::<bool>().map_err(|_| {
+                        EvaluationError::new("expected a boolean", token.line, token.column)
+                    })?;
+                    Ok(Literal::Boolean(value))
+                }
+                TokenType::String => {
+                    let value = token.lexeme.clone();
+                    Ok(Literal::String(value))
+                }
+                _ => Err(EvaluationError::new(
+                    "unknown value",
+                    token.line,
+                    token.column,
+                )),
+            },
         }
     }
 }
@@ -232,7 +173,8 @@ impl From<Expression> for String {
                 let expr: String = expr.as_ref().to_owned().into();
                 format!("(group {})", expr)
             }
-            Expression::Literal(token) => token.lexeme,
+            Expression::Literal(token) | Expression::Variable(token) => token.lexeme,
+            Expression::Assignment(token, expr) => todo!(),
         }
     }
 }
@@ -244,7 +186,12 @@ mod tests {
     fn evaluate_expression(expr: &str) -> String {
         let scanner = Scanner::new(expr.into()).unwrap();
         let mut parser = Parser::new(scanner.tokens);
-        parser.parse_expression().unwrap().evaluate().unwrap()
+        parser
+            .parse_expression()
+            .unwrap()
+            .evaluate()
+            .unwrap()
+            .into()
     }
 
     #[test]

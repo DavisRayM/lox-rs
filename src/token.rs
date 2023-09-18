@@ -137,14 +137,6 @@ pub struct Token {
     pub column: usize,
 }
 
-#[derive(Clone, Debug)]
-pub enum Literal {
-    String(String),
-    Number(i32),
-    Boolean(bool),
-    Generic(String),
-}
-
 impl Token {
     pub fn new(lexeme: &str, line: usize, column: usize, _type: TokenType) -> Self {
         Self {
