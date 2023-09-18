@@ -80,7 +80,12 @@ impl Parser {
     fn parse_equality(&mut self) -> ParserResult<Expression> {
         let mut expr = self.parse_comparison()?;
 
-        while self.advance_if_match(vec![TokenType::NotEqual, TokenType::EqualEqual]) {
+        while self.advance_if_match(vec![
+            TokenType::NotEqual,
+            TokenType::EqualEqual,
+            TokenType::Or,
+            TokenType::And,
+        ]) {
             let operator = self.previous();
             let r_expr = self.parse_comparison()?;
             expr = Expression::Binary(Box::new(expr), operator, Box::new(r_expr));
@@ -98,8 +103,6 @@ impl Parser {
             TokenType::Less,
             TokenType::LessEqual,
             TokenType::EqualEqual,
-            TokenType::Or,
-            TokenType::And,
         ]) {
             let operator = self.previous();
             let rexpr = self.parse_term()?;
@@ -443,7 +446,7 @@ mod tests {
     fn parses_comparison_expressions() {
         let scenarios: Vec<(&str, String)> = vec![
             (
-                "true || false",
+                "true || 3 < 2",
                 Expression::Binary(
                     Box::new(Expression::Literal(Token::new(
                         "true",
@@ -457,12 +460,21 @@ mod tests {
                         _type: TokenType::Or,
                         column: 6,
                     },
-                    Box::new(Expression::Literal(Token::new(
-                        "false",
-                        1,
-                        9,
-                        TokenType::False,
-                    ))),
+                    Box::new(Expression::Binary(
+                        Box::new(Expression::Literal(Token::new(
+                            "3",
+                            0,
+                            0,
+                            TokenType::Number,
+                        ))),
+                        Token::new("<", 0, 0, TokenType::Less),
+                        Box::new(Expression::Literal(Token::new(
+                            "2",
+                            0,
+                            0,
+                            TokenType::Number,
+                        ))),
+                    )),
                 )
                 .into(),
             ),
