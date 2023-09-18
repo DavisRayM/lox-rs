@@ -24,36 +24,13 @@
 ///   unary -> ( "!", "-" ) unary | primary;
 ///
 ///   primary -> NUMBER | STRING | "true" | "false" | "(" expression ")" ;
-use crate::tokens::{Token, TokenType};
+use crate::{
+    errors::{ExceptionType, ParserError},
+    expression::Expression,
+    token::{Token, TokenType},
+};
 
-#[derive(Clone, Debug)]
-pub enum Expression {
-    Unary(Token, Box<Expression>),
-    Binary(Box<Expression>, Token, Box<Expression>),
-    Grouping(Box<Expression>),
-    Literal(String),
-}
-
-impl From<Expression> for String {
-    fn from(val: Expression) -> String {
-        match val {
-            Expression::Unary(token, expr) => {
-                let expr: String = expr.as_ref().to_owned().into();
-                format!("({} {})", token.lexeme, expr)
-            }
-            Expression::Binary(expr, token, r_expr) => {
-                let expr: String = expr.as_ref().to_owned().into();
-                let r_expr: String = r_expr.as_ref().to_owned().into();
-                format!("({} {} {})", token.lexeme, expr, r_expr)
-            }
-            Expression::Grouping(expr) => {
-                let expr: String = expr.as_ref().to_owned().into();
-                format!("(group {})", expr)
-            }
-            Expression::Literal(token) => token,
-        }
-    }
-}
+pub type ParserResult<T> = Result<T, ParserError>;
 
 /// AST Parser for the Lox language
 pub struct Parser {
@@ -66,7 +43,7 @@ impl Parser {
         Self { source, current: 0 }
     }
 
-    pub fn parse_expression(&mut self) -> Result<Expression, String> {
+    pub fn parse_expression(&mut self) -> ParserResult<Expression> {
         self.parse_equality()
     }
 
@@ -90,7 +67,7 @@ impl Parser {
         result
     }
 
-    fn parse_equality(&mut self) -> Result<Expression, String> {
+    fn parse_equality(&mut self) -> ParserResult<Expression> {
         let mut expr = self.parse_comparison()?;
 
         while self.advance_if_match(vec![TokenType::NotEqual, TokenType::EqualEqual]) {
@@ -102,7 +79,7 @@ impl Parser {
         Ok(expr)
     }
 
-    fn parse_comparison(&mut self) -> Result<Expression, String> {
+    fn parse_comparison(&mut self) -> ParserResult<Expression> {
         let mut expr = self.parse_term()?;
 
         while self.advance_if_match(vec![
@@ -110,6 +87,9 @@ impl Parser {
             TokenType::GreaterEqual,
             TokenType::Less,
             TokenType::LessEqual,
+            TokenType::EqualEqual,
+            TokenType::Or,
+            TokenType::And,
         ]) {
             let operator = self.previous();
             let rexpr = self.parse_term()?;
@@ -119,7 +99,7 @@ impl Parser {
         Ok(expr)
     }
 
-    fn parse_term(&mut self) -> Result<Expression, String> {
+    fn parse_term(&mut self) -> ParserResult<Expression> {
         let mut expr = self.parse_factor()?;
 
         while self.advance_if_match(vec![TokenType::Minus, TokenType::Plus]) {
@@ -131,10 +111,10 @@ impl Parser {
         Ok(expr)
     }
 
-    fn parse_factor(&mut self) -> Result<Expression, String> {
+    fn parse_factor(&mut self) -> ParserResult<Expression> {
         let mut expr = self.parse_unary()?;
 
-        while self.advance_if_match(vec![TokenType::Slash, TokenType::Star]) {
+        while self.advance_if_match(vec![TokenType::Slash, TokenType::Star, TokenType::Equal]) {
             let operator = self.previous();
             let rexpr = self.parse_unary()?;
             expr = Expression::Binary(Box::new(expr), operator, Box::new(rexpr));
@@ -143,7 +123,7 @@ impl Parser {
         Ok(expr)
     }
 
-    fn parse_unary(&mut self) -> Result<Expression, String> {
+    fn parse_unary(&mut self) -> ParserResult<Expression> {
         if self.advance_if_match(vec![TokenType::Not, TokenType::Minus]) {
             let operator = self.previous();
             let rexpr = self.parse_unary()?;
@@ -153,7 +133,7 @@ impl Parser {
         }
     }
 
-    fn parse_primary(&mut self) -> Result<Expression, String> {
+    fn parse_primary(&mut self) -> ParserResult<Expression> {
         if self.advance_if_match(vec![TokenType::False]) {
             Ok(Expression::Literal("false".into()))
         } else if self.advance_if_match(vec![TokenType::True]) {
@@ -165,16 +145,294 @@ impl Parser {
             self.check_and_consume(TokenType::RightParen)?;
             Ok(Expression::Grouping(Box::new(expr)))
         } else {
-            Err("unexpected expression".into())
+            Err(ParserError::new(
+                "invalid expression",
+                &self.peek(),
+                ExceptionType::RuntimeException,
+            ))
         }
     }
 
-    fn check_and_consume(&mut self, token_type: TokenType) -> Result<(), String> {
-        if self.source[self.current]._type != token_type {
-            return Err(format!("expected '{:?}' after expression", token_type));
+    fn check_and_consume(&mut self, token_type: TokenType) -> ParserResult<()> {
+        let token = &self.source[self.current];
+        if token._type != token_type {
+            return Err(ParserError::new(
+                "expected {}",
+                token,
+                ExceptionType::RuntimeException,
+            ));
         }
 
         self.current += 1;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+
+    use super::*;
+    use crate::scanner::Scanner;
+
+    fn assert_expression_scenarios(scenarios: Vec<(&str, String)>) {
+        for (scenario, expected) in scenarios {
+            let tokens = Scanner::new(scenario.into()).unwrap().tokens;
+            let mut parser = Parser::new(tokens);
+            let expression: String = parser.parse_expression().unwrap().into();
+
+            assert_eq!(expression, expected);
+        }
+    }
+
+    #[test]
+    fn parses_primary_expressions() {
+        let scenarios: Vec<(&str, String)> = vec![
+            ("false", Expression::Literal("false".into()).into()),
+            ("true", Expression::Literal("true".into()).into()),
+            ("2000", Expression::Literal("2000".into()).into()),
+            (
+                "\"Hi there\"",
+                Expression::Literal("Hi there".into()).into(),
+            ),
+            (
+                "( 2000 )",
+                Expression::Grouping(Box::new(Expression::Literal("2000".into()))).into(),
+            ),
+        ];
+        assert_expression_scenarios(scenarios);
+    }
+
+    #[test]
+    fn parses_unary_expressions() {
+        let scenarios: Vec<(&str, String)> = vec![
+            (
+                "-1",
+                Expression::Unary(
+                    Token {
+                        line: 1,
+                        lexeme: "-".into(),
+                        _type: TokenType::Minus,
+                        column: 1,
+                    },
+                    Box::new(Expression::Literal("1".into())),
+                )
+                .into(),
+            ),
+            (
+                "!true",
+                Expression::Unary(
+                    Token {
+                        line: 1,
+                        lexeme: "!".into(),
+                        _type: TokenType::Not,
+                        column: 1,
+                    },
+                    Box::new(Expression::Literal("true".into())),
+                )
+                .into(),
+            ),
+        ];
+
+        assert_expression_scenarios(scenarios);
+    }
+
+    #[test]
+    fn parses_factor_expressions() {
+        let scenarios: Vec<(&str, String)> = vec![
+            (
+                "2 * 5",
+                Expression::Binary(
+                    Box::new(Expression::Literal("2".into())),
+                    Token {
+                        line: 1,
+                        lexeme: "*".into(),
+                        _type: TokenType::Star,
+                        column: 3,
+                    },
+                    Box::new(Expression::Literal("5".into())),
+                )
+                .into(),
+            ),
+            (
+                "25 / 5",
+                Expression::Binary(
+                    Box::new(Expression::Literal("25".into())),
+                    Token {
+                        line: 1,
+                        lexeme: "/".into(),
+                        _type: TokenType::Slash,
+                        column: 4,
+                    },
+                    Box::new(Expression::Literal("5".into())),
+                )
+                .into(),
+            ),
+        ];
+
+        assert_expression_scenarios(scenarios);
+    }
+
+    #[test]
+    fn parses_equality_expressions() {
+        let scenarios: Vec<(&str, String)> = vec![
+            (
+                "4 == 4",
+                Expression::Binary(
+                    Box::new(Expression::Literal("4".into())),
+                    Token {
+                        line: 1,
+                        lexeme: "==".into(),
+                        _type: TokenType::EqualEqual,
+                        column: 6,
+                    },
+                    Box::new(Expression::Literal("4".into())),
+                )
+                .into(),
+            ),
+            (
+                "24.5 != 30",
+                Expression::Binary(
+                    Box::new(Expression::Literal("24.5".into())),
+                    Token {
+                        line: 1,
+                        lexeme: "!=".into(),
+                        _type: TokenType::NotEqual,
+                        column: 6,
+                    },
+                    Box::new(Expression::Literal("30".into())),
+                )
+                .into(),
+            ),
+        ];
+
+        assert_expression_scenarios(scenarios);
+    }
+
+    #[test]
+    fn parses_terminal_expressions() {
+        let scenarios: Vec<(&str, String)> = vec![
+            (
+                "24.5 + 30",
+                Expression::Binary(
+                    Box::new(Expression::Literal("24.5".into())),
+                    Token {
+                        line: 1,
+                        lexeme: "+".into(),
+                        _type: TokenType::Plus,
+                        column: 6,
+                    },
+                    Box::new(Expression::Literal("30".into())),
+                )
+                .into(),
+            ),
+            (
+                "24.5 - 30",
+                Expression::Binary(
+                    Box::new(Expression::Literal("24.5".into())),
+                    Token {
+                        line: 1,
+                        lexeme: "-".into(),
+                        _type: TokenType::Minus,
+                        column: 6,
+                    },
+                    Box::new(Expression::Literal("30".into())),
+                )
+                .into(),
+            ),
+        ];
+
+        assert_expression_scenarios(scenarios);
+    }
+
+    #[test]
+    fn parses_comparison_expressions() {
+        let scenarios: Vec<(&str, String)> = vec![
+            (
+                "true || false",
+                Expression::Binary(
+                    Box::new(Expression::Literal("true".into())),
+                    Token {
+                        line: 1,
+                        lexeme: "||".into(),
+                        _type: TokenType::Or,
+                        column: 6,
+                    },
+                    Box::new(Expression::Literal("false".into())),
+                )
+                .into(),
+            ),
+            (
+                "true && true",
+                Expression::Binary(
+                    Box::new(Expression::Literal("true".into())),
+                    Token {
+                        line: 1,
+                        lexeme: "&&".into(),
+                        _type: TokenType::And,
+                        column: 6,
+                    },
+                    Box::new(Expression::Literal("true".into())),
+                )
+                .into(),
+            ),
+            (
+                "1 < 2",
+                Expression::Binary(
+                    Box::new(Expression::Literal("1".into())),
+                    Token {
+                        line: 1,
+                        lexeme: "<".into(),
+                        _type: TokenType::Less,
+                        column: 6,
+                    },
+                    Box::new(Expression::Literal("2".into())),
+                )
+                .into(),
+            ),
+            (
+                "2 <= 2",
+                Expression::Binary(
+                    Box::new(Expression::Literal("2".into())),
+                    Token {
+                        line: 1,
+                        lexeme: "<=".into(),
+                        _type: TokenType::LessEqual,
+                        column: 6,
+                    },
+                    Box::new(Expression::Literal("2".into())),
+                )
+                .into(),
+            ),
+            (
+                "3 > 4",
+                Expression::Binary(
+                    Box::new(Expression::Literal("3".into())),
+                    Token {
+                        line: 1,
+                        lexeme: ">".into(),
+                        _type: TokenType::Greater,
+                        column: 6,
+                    },
+                    Box::new(Expression::Literal("4".into())),
+                )
+                .into(),
+            ),
+            (
+                "4 >= 10",
+                Expression::Binary(
+                    Box::new(Expression::Literal("4".into())),
+                    Token {
+                        line: 1,
+                        lexeme: ">=".into(),
+                        _type: TokenType::GreaterEqual,
+                        column: 6,
+                    },
+                    Box::new(Expression::Literal("10".into())),
+                )
+                .into(),
+            ),
+        ];
+
+        assert_expression_scenarios(scenarios);
     }
 }

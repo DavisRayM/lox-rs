@@ -1,5 +1,7 @@
 use std::fmt;
 
+use crate::token::Token;
+
 #[derive(Clone, Debug)]
 pub struct InterpreterError {
     pub line: usize,
@@ -30,6 +32,51 @@ impl fmt::Display for ScanError {
             f,
             "scan error at {}:{}; {}",
             self.line, self.column, self.msg
+        )
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum ExceptionType {
+    RuntimeException,
+}
+
+impl ToString for ExceptionType {
+    fn to_string(&self) -> String {
+        match self {
+            ExceptionType::RuntimeException => "runtime exception".to_string(),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct ParserError {
+    exc_type: ExceptionType,
+    line: usize,
+    column: usize,
+    msg: String,
+}
+
+impl ParserError {
+    pub fn new(msg: &str, token: &Token, exc: ExceptionType) -> Self {
+        Self {
+            msg: msg.into(),
+            line: token.line,
+            column: token.column,
+            exc_type: exc,
+        }
+    }
+}
+
+impl fmt::Display for ParserError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{}: {} at line {} column {}",
+            self.exc_type.to_string(),
+            self.msg,
+            self.line,
+            self.column
         )
     }
 }

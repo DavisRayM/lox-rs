@@ -1,4 +1,5 @@
 pub mod errors;
+pub mod expression;
 pub mod parser;
 pub mod repl;
 pub mod scanner;
