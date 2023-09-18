@@ -40,14 +40,14 @@
 use crate::{
     errors::{ExceptionType, ParserError},
     expression::Expression,
-    literal::Literal,
     token::{Token, TokenType},
 };
 
+#[derive(Debug, Clone)]
 pub enum Statement {
     Expression(Expression),
     Variable(Expression),
-    Assign(Token, Literal),
+    Assign(Token, Expression),
 }
 
 pub type ParserResult<T> = Result<T, ParserError>;
@@ -73,7 +73,7 @@ impl Parser {
     }
 
     fn parse_declaration(&mut self) -> ParserResult<Statement> {
-        if self.matches(vec![TokenType::Let]) {
+        if self.advance_if_match(vec![TokenType::Let]) {
             self.parse_variable()
         } else {
             self.parse_statement()
@@ -88,11 +88,11 @@ impl Parser {
                 ExceptionType::RuntimeException,
             ))
         } else {
-            self.consume();
+            let name = self.consume();
             self.check_and_consume(TokenType::Equal)?;
             let initializer = self.parse_expression()?;
             self.check_and_consume(TokenType::SemiColon)?;
-            Ok(Statement::Variable(initializer))
+            Ok(Statement::Assign(name, initializer))
         }
     }
 
@@ -273,6 +273,34 @@ mod tests {
     use super::*;
     use crate::scanner::Scanner;
 
+    fn assert_statement_scenarios(scenarios: Vec<(String, String)>) {
+        for (scenario, expected) in scenarios.iter() {
+            let tokens = Scanner::new(scenario).unwrap().tokens;
+            let mut parser = Parser::new(tokens);
+            let statements = parser.parse().unwrap();
+
+            let mut actual = String::new();
+            for statement in statements {
+                match statement {
+                    Statement::Assign(token, expr) => {
+                        let str_rep: String = expr.evaluate().unwrap().into();
+                        actual.push_str(&format!("let {} = {}", token.lexeme, str_rep));
+                    }
+                    Statement::Variable(expr) => {
+                        let str_rep: String = expr.evaluate().unwrap().into();
+                        actual.push_str(&str_rep)
+                    }
+                    Statement::Expression(expr) => {
+                        let str_rep: String = expr.evaluate().unwrap().into();
+                        actual.push_str(&str_rep)
+                    }
+                }
+            }
+
+            assert_eq!(actual, expected.to_owned());
+        }
+    }
+
     fn assert_expression_scenarios(scenarios: Vec<(&str, String)>) {
         for (scenario, expected) in scenarios {
             let tokens = Scanner::new(scenario.into()).unwrap().tokens;
@@ -281,6 +309,20 @@ mod tests {
 
             assert_eq!(expression, expected);
         }
+    }
+
+    #[test]
+    fn parses_assignment_statements_successfuly() {
+        let scenarios: Vec<(String, String)> = vec![
+            ("let num = 25;".into(), "let num = 25".into()),
+            ("num;".into(), "num".into()),
+            ("2 * 4;".into(), "8".into()),
+            (
+                "let div_result = 4 / 2;".into(),
+                "let div_result = 2".into(),
+            ),
+        ];
+        assert_statement_scenarios(scenarios);
     }
 
     #[test]

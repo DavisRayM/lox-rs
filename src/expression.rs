@@ -188,7 +188,7 @@ mod tests {
         scanner::Scanner,
     };
 
-    fn evaluate_expression(expr: &str) -> String {
+    fn evaluate_statement(expr: &str) -> String {
         let scanner = Scanner::new(expr.into()).unwrap();
         let mut parser = Parser::new(scanner.tokens);
         let statements = parser.parse().unwrap();
@@ -217,51 +217,51 @@ mod tests {
     #[test]
     fn calculation_expressions_are_evaluated_successfully() {
         let expression = "2 + 2 * 5;";
-        assert_eq!(evaluate_expression(expression), "12");
+        assert_eq!(evaluate_statement(expression), "12");
 
         let expression = "4 - 2;";
-        assert_eq!(evaluate_expression(expression), "2");
+        assert_eq!(evaluate_statement(expression), "2");
 
         let expression = "4 / 2 - 3;";
-        assert_eq!(evaluate_expression(expression), "-1");
+        assert_eq!(evaluate_statement(expression), "-1");
     }
 
     #[test]
     fn unary_expressions_are_evaluated_successfully() {
         let expression = "!true;";
-        assert_eq!(evaluate_expression(expression), "false");
+        assert_eq!(evaluate_statement(expression), "false");
 
         let expression = "!false;";
-        assert_eq!(evaluate_expression(expression), "true");
+        assert_eq!(evaluate_statement(expression), "true");
     }
 
     #[test]
     fn conditional_expressions_are_evaluated_successfully() {
         let expression = "(2 * 6) < 12 || 4 > 5;";
-        assert_eq!(evaluate_expression(expression), "false");
+        assert_eq!(evaluate_statement(expression), "false");
 
         let expression = "4 < 5 && 10 > 1;";
-        assert_eq!(evaluate_expression(expression), "true");
+        assert_eq!(evaluate_statement(expression), "true");
     }
 
     #[test]
     fn comparison_expressions_are_evaluated_succesfully() {
         let expression = "(2 + 4) <= 6;";
-        assert_eq!(evaluate_expression(expression), "true");
+        assert_eq!(evaluate_statement(expression), "true");
 
         let expression = "(2 + 4) < 6;";
-        assert_eq!(evaluate_expression(expression), "false");
+        assert_eq!(evaluate_statement(expression), "false");
 
         let expression = "(2 * 4) > 6;";
-        assert_eq!(evaluate_expression(expression), "true");
+        assert_eq!(evaluate_statement(expression), "true");
 
         let expression = "(4 / 2) >= 6;";
-        assert_eq!(evaluate_expression(expression), "false");
+        assert_eq!(evaluate_statement(expression), "false");
 
         let expression = "(2 + 4) == 6;";
-        assert_eq!(evaluate_expression(expression), "true");
+        assert_eq!(evaluate_statement(expression), "true");
 
         let expression = "(2 + 4) != 10;";
-        assert_eq!(evaluate_expression(expression), "true");
+        assert_eq!(evaluate_statement(expression), "true");
     }
 }
