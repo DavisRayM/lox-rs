@@ -118,7 +118,10 @@ impl Parser {
             } else if self.matches(vec![TokenType::SemiColon]) {
                 self.consume();
             }
-            Ok(Statement::Expression(expr))
+            match expr {
+                Expression::Variable(token) => Ok(Statement::Variable(Expression::Variable(token))),
+                _ => Ok(Statement::Expression(expr)),
+            }
         }
     }
 
