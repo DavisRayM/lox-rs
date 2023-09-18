@@ -147,11 +147,12 @@ impl Parser {
     }
 
     fn parse_primary(&mut self) -> ParserResult<Expression> {
-        if self.matches(vec![TokenType::False]) {
-            Ok(Expression::Literal(self.consume()))
-        } else if self.matches(vec![TokenType::True]) {
-            Ok(Expression::Literal(self.consume()))
-        } else if self.matches(vec![TokenType::Number, TokenType::String]) {
+        if self.matches(vec![
+            TokenType::False,
+            TokenType::True,
+            TokenType::Number,
+            TokenType::String,
+        ]) {
             Ok(Expression::Literal(self.consume()))
         } else if self.advance_if_match(vec![TokenType::LeftParen]) {
             let expr = self.parse_expression()?;
