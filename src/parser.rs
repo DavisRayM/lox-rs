@@ -11,7 +11,19 @@
 ///   a literal value i.e TokenType::Plus, TokenType::NotEqual
 ///
 /// Productions:
-///   expression -> equality
+///   program -> declaration* EOF ;
+///
+///   declaration -> varDcl | statement;
+///
+///   declaration -> "var" IDENTIFIER ( "=" expression )? ";" ;
+///
+///   statement -> exprStmt ;
+///
+///   exprStmt -> expression ";" ;
+///
+///   expression -> assignment ;
+///
+///   assignment -> IDENTIFIER "=" assignment | equality;
 ///   
 ///   equality -> comparison ( ( "!=", "==" ) comparison) ;
 ///
@@ -23,12 +35,20 @@
 ///
 ///   unary -> ( "!", "-" ) unary | primary;
 ///
-///   primary -> NUMBER | STRING | "true" | "false" | "(" expression ")" ;
+///   primary -> NUMBER | STRING | "true" | "false" | "(" expression ")"
+///              | IDENTIFIER ;
 use crate::{
     errors::{ExceptionType, ParserError},
     expression::Expression,
+    literal::Literal,
     token::{Token, TokenType},
 };
+
+pub enum Statement {
+    Expression(Expression),
+    Variable(Expression),
+    Assign(Token, Literal),
+}
 
 pub type ParserResult<T> = Result<T, ParserError>;
 
@@ -43,8 +63,77 @@ impl Parser {
         Self { source, current: 0 }
     }
 
-    pub fn parse_expression(&mut self) -> ParserResult<Expression> {
-        self.parse_equality()
+    pub fn parse(&mut self) -> ParserResult<Vec<Statement>> {
+        let mut statements: Vec<Statement> = Vec::new();
+        while self.current < self.source.len() {
+            statements.push(self.parse_declaration()?);
+        }
+
+        Ok(statements)
+    }
+
+    fn parse_declaration(&mut self) -> ParserResult<Statement> {
+        if self.matches(vec![TokenType::Let]) {
+            self.parse_variable()
+        } else {
+            self.parse_statement()
+        }
+    }
+
+    fn parse_variable(&mut self) -> ParserResult<Statement> {
+        if !self.matches(vec![TokenType::Identifier]) {
+            Err(ParserError::new(
+                "expected an identifier",
+                &self.peek(),
+                ExceptionType::RuntimeException,
+            ))
+        } else {
+            self.consume();
+            self.check_and_consume(TokenType::Equal)?;
+            let initializer = self.parse_expression()?;
+            self.check_and_consume(TokenType::SemiColon)?;
+            Ok(Statement::Variable(initializer))
+        }
+    }
+
+    pub fn parse_statement(&mut self) -> ParserResult<Statement> {
+        let expr = self.parse_expression()?;
+        self.check_and_consume(TokenType::SemiColon)?;
+        Ok(Statement::Expression(expr))
+    }
+
+    pub fn parse_assignment(&mut self) -> ParserResult<Expression> {
+        let expr = self.parse_equality()?;
+
+        if self.matches(vec![TokenType::Equal]) {
+            let name = self.previous();
+            let equals = self.consume();
+            let rexpr = self.parse_assignment()?;
+
+            match rexpr {
+                Expression::Variable(_) => Ok(Expression::Assignment(
+                    name.clone(),
+                    rexpr.evaluate().map_err(|_| {
+                        ParserError::new(
+                            "invalid assignment",
+                            &name,
+                            ExceptionType::RuntimeException,
+                        )
+                    })?,
+                )),
+                _ => Err(ParserError::new(
+                    "invalid assignment target",
+                    &equals,
+                    ExceptionType::RuntimeException,
+                )),
+            }
+        } else {
+            Ok(expr)
+        }
+    }
+
+    fn parse_expression(&mut self) -> ParserResult<Expression> {
+        self.parse_assignment()
     }
 
     fn peek(&self) -> Token {
@@ -159,11 +248,7 @@ impl Parser {
             self.check_and_consume(TokenType::RightParen)?;
             Ok(Expression::Grouping(Box::new(expr)))
         } else {
-            Err(ParserError::new(
-                "invalid expression",
-                &self.peek(),
-                ExceptionType::RuntimeException,
-            ))
+            Ok(Expression::Variable(self.consume()))
         }
     }
 
@@ -171,7 +256,7 @@ impl Parser {
         let token = self.peek();
         if token._type != token_type {
             return Err(ParserError::new(
-                "expected {}",
+                &format!("expected {:?}", token_type),
                 &token,
                 ExceptionType::RuntimeException,
             ));

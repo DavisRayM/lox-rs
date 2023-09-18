@@ -174,74 +174,94 @@ impl From<Expression> for String {
                 format!("(group {})", expr)
             }
             Expression::Literal(token) | Expression::Variable(token) => token.lexeme,
-            Expression::Assignment(token, expr) => todo!(),
+            Expression::Assignment(token, literal) => {
+                format!("({} = {:?})", token.lexeme.clone(), literal)
+            }
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::{parser::Parser, scanner::Scanner};
+    use crate::{
+        parser::{Parser, Statement},
+        scanner::Scanner,
+    };
 
     fn evaluate_expression(expr: &str) -> String {
         let scanner = Scanner::new(expr.into()).unwrap();
         let mut parser = Parser::new(scanner.tokens);
-        parser
-            .parse_expression()
-            .unwrap()
-            .evaluate()
-            .unwrap()
-            .into()
+        let statements = parser.parse().unwrap();
+        let mut out = String::new();
+
+        for statement in statements {
+            match statement {
+                Statement::Assign(token, literal) => {
+                    let str_rep: String = literal.into();
+                    out.push_str(&format!("let {} = {}", token.lexeme, str_rep));
+                }
+                Statement::Variable(expr) => {
+                    let str_rep: String = expr.evaluate().unwrap().into();
+                    out.push_str(&str_rep)
+                }
+                Statement::Expression(expr) => {
+                    let str_rep: String = expr.evaluate().unwrap().into();
+                    out.push_str(&str_rep)
+                }
+            }
+        }
+
+        out
     }
 
     #[test]
     fn calculation_expressions_are_evaluated_successfully() {
-        let expression = "2 + 2 * 5";
+        let expression = "2 + 2 * 5;";
         assert_eq!(evaluate_expression(expression), "12");
 
-        let expression = "4 - 2";
+        let expression = "4 - 2;";
         assert_eq!(evaluate_expression(expression), "2");
 
-        let expression = "4 / 2 - 3";
+        let expression = "4 / 2 - 3;";
         assert_eq!(evaluate_expression(expression), "-1");
     }
 
     #[test]
     fn unary_expressions_are_evaluated_successfully() {
-        let expression = "!true";
+        let expression = "!true;";
         assert_eq!(evaluate_expression(expression), "false");
 
-        let expression = "!false";
+        let expression = "!false;";
         assert_eq!(evaluate_expression(expression), "true");
     }
 
     #[test]
     fn conditional_expressions_are_evaluated_successfully() {
-        let expression = "((2 * 6) < 12) || 4 > 5)";
+        let expression = "(2 * 6) < 12 || 4 > 5;";
         assert_eq!(evaluate_expression(expression), "false");
 
-        let expression = "4 < 5 && 10 > 1";
+        let expression = "4 < 5 && 10 > 1;";
         assert_eq!(evaluate_expression(expression), "true");
     }
 
     #[test]
     fn comparison_expressions_are_evaluated_succesfully() {
-        let expression = "(2 + 4) <= 6";
+        let expression = "(2 + 4) <= 6;";
         assert_eq!(evaluate_expression(expression), "true");
 
-        let expression = "(2 + 4) < 6";
+        let expression = "(2 + 4) < 6;";
         assert_eq!(evaluate_expression(expression), "false");
 
-        let expression = "(2 * 4) > 6";
+        let expression = "(2 * 4) > 6;";
         assert_eq!(evaluate_expression(expression), "true");
 
-        let expression = "(4 / 2) >= 6";
+        let expression = "(4 / 2) >= 6;";
         assert_eq!(evaluate_expression(expression), "false");
 
-        let expression = "(2 + 4) == 6";
+        let expression = "(2 + 4) == 6;";
         assert_eq!(evaluate_expression(expression), "true");
 
-        let expression = "(2 + 4) != 10";
+        let expression = "(2 + 4) != 10;";
         assert_eq!(evaluate_expression(expression), "true");
     }
 }
