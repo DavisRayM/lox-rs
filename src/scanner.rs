@@ -24,13 +24,6 @@ const FORMATTING_TOKENS: [TokenType; 4] = [
     TokenType::Space,
 ];
 
-const LOGICAL_TOKENS: [TokenType; 4] = [
-    TokenType::Not,
-    TokenType::Less,
-    TokenType::Greater,
-    TokenType::Equal,
-];
-
 /// Scanner is used for lexically analysis string content
 ///
 /// The scanner performs lexical analysis on string content afterwhich it
@@ -71,22 +64,22 @@ impl Scanner {
         Ok(scanner)
     }
 
-    fn peek_next(&self) -> Option<TokenType> {
-        let next_pos = self.next + 1;
-
-        if next_pos >= self.source.len() {
-            return None;
-        }
-
-        let token_type = TokenType::try_from(self.source[next_pos]);
-        match token_type {
-            Ok(token_type) => Some(token_type),
-            Err(_) => None,
+    fn next_type(&self) -> Option<TokenType> {
+        if let Some(value) = self.peek_next() {
+            let token_type = TokenType::try_from(value).unwrap();
+            Some(token_type)
+        } else {
+            None
         }
     }
 
     fn scan_tokens(&mut self) -> Result<(), String> {
         while self.next < self.source.len() {
+            let line = self.current_row;
+            let col = self.current_col;
+
+            let mut is_new_line = false;
+
             let mut lexeme: Vec<char> = vec![self.source[self.next]];
             let mut token_type: TokenType = match TokenType::try_from(lexeme[0]) {
                 Ok(token_type) => token_type,
@@ -94,135 +87,200 @@ impl Scanner {
                     return Err(e);
                 }
             };
-            let mut is_new_line = false;
-            let initial_pos = self.next;
 
             if SINGLE_CHAR_TOKENS
                 .to_vec()
                 .iter()
                 .any(|_type| *_type == token_type)
             {
-                self.add_token(token_type, lexeme.iter().collect::<String>());
+                self.next();
+                self.add_token(token_type, lexeme.iter().collect::<String>(), line, col);
             } else if FORMATTING_TOKENS
                 .to_vec()
                 .iter()
                 .any(|_type| *_type == token_type)
             {
+                self.next();
                 if token_type == TokenType::NewLine {
                     is_new_line = true;
                 }
-            } else if LOGICAL_TOKENS
-                .to_vec()
-                .iter()
-                .any(|_type| *_type == token_type)
-            {
-                if self.peek_next().is_some() && self.peek_next().unwrap() == TokenType::Equal {
-                    token_type = match token_type {
-                        TokenType::Not => TokenType::NotEqual,
-                        TokenType::Less => TokenType::LessEqual,
-                        TokenType::Greater => TokenType::GreaterEqual,
-                        TokenType::Equal => TokenType::EqualEqual,
-                        _ => return Err("fatal error: unknown token".into()),
-                    };
-                    lexeme.push(self.source[self.next + 1]);
-                    self.next += 1;
-                }
-                self.add_token(token_type, lexeme.iter().collect::<String>());
             } else {
-                if token_type != TokenType::Identifier {
-                    return Err("something went horribly wrong!".into());
-                }
-
-                token_type = match self.consume_indentifier(&mut lexeme) {
+                self.next();
+                token_type = match self.read_next_token(&mut lexeme) {
                     Ok(token_type) => token_type,
                     Err(e) => return Err(e),
                 };
-                self.add_token(token_type, lexeme.iter().collect::<String>());
+                self.add_token(token_type, lexeme.iter().collect::<String>(), line, col);
             }
 
             if is_new_line {
                 self.current_row += 1;
-                self.current_col = 0;
+                self.current_col = 1;
             }
-            self.next += 1;
-            self.current_col += self.next - initial_pos;
         }
         Ok(())
     }
 
-    fn consume_indentifier(&mut self, lexeme: &mut Vec<char>) -> Result<TokenType, String> {
-        let char_rep = lexeme[0];
-        if char_rep == '"' {
-            lexeme.clear();
-            loop {
-                let next_pos = self.next + 1;
-
-                if next_pos >= self.source.len() {
-                    return Err("unclosed string missing closing `\"`".into());
-                }
-
-                if self.source[next_pos] == '"' {
-                    self.next += 1;
-                    break;
-                }
-
-                lexeme.push(self.source[next_pos]);
-                self.next += 1;
-            }
-
-            Ok(TokenType::String)
-        } else if Self::is_digit(char_rep) {
-            loop {
-                let next_pos = self.next + 1;
-
-                if self.peek_next().is_none() || !Self::is_numeric(self.source[next_pos]) {
-                    break;
-                } else {
-                    lexeme.push(self.source[next_pos]);
-                    self.next += 1;
-                }
-            }
-
-            Ok(TokenType::Number)
-        } else if Self::is_alphabetic(char_rep) {
-            loop {
-                let next_pos = self.next + 1;
-
-                if self.peek_next().is_none() {
-                    break;
-                } else if Self::is_alphanumeric(self.source[next_pos]) {
-                    lexeme.push(self.source[next_pos]);
-                    self.next += 1;
-                } else {
-                    break;
-                }
-            }
-
-            Ok(Self::process_identifier(&lexeme.iter().collect::<String>()))
+    fn next_matches(&self, s: char) -> bool {
+        if let Some(value) = self.peek_next() {
+            value == s
         } else {
-            return Err("unknown character".into());
+            false
         }
     }
 
-    fn add_token(&mut self, _type: TokenType, lexeme: String) {
+    fn has_next(&self) -> bool {
+        self.source.len() > self.next
+    }
+
+    fn peek_next(&self) -> Option<char> {
+        if !self.has_next() {
+            None
+        } else {
+            Some(self.source[self.next])
+        }
+    }
+
+    fn next(&mut self) -> Option<char> {
+        if let Some(value) = self.peek_next() {
+            self.next += 1;
+            self.current_col += 1;
+            Some(value)
+        } else {
+            None
+        }
+    }
+
+    fn consume_until(&mut self, buf: &mut Vec<char>, until: char) -> Result<(), String> {
+        loop {
+            if self.next_matches(until) {
+                self.next();
+                break;
+            } else {
+                match self.next() {
+                    Some(val) => buf.push(val),
+                    None => {
+                        return Err(format!("missing `{}`", until));
+                    }
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    fn read_next_token(&mut self, lexeme: &mut Vec<char>) -> Result<TokenType, String> {
+        let char_rep = lexeme[0];
+        let token_type: TokenType;
+
+        match char_rep {
+            '"' => {
+                token_type = TokenType::String;
+                lexeme.clear();
+
+                if let Err(e) = self.consume_until(lexeme, char_rep) {
+                    Err(format!("unclosed {} {}", TokenType::String, e))
+                } else {
+                    Ok(token_type)
+                }
+            }
+            '|' => {
+                if self.next_matches(char_rep) {
+                    lexeme.push(self.next().unwrap());
+                    Ok(TokenType::Or)
+                } else {
+                    Err("unknown character".into())
+                }
+            }
+            '&' => {
+                if self.next_matches(char_rep) {
+                    lexeme.push(self.next().unwrap());
+                    Ok(TokenType::And)
+                } else {
+                    Err("unknown character".into())
+                }
+            }
+            '<' => {
+                if self.next_matches('=') {
+                    lexeme.push(self.next().unwrap());
+                    Ok(TokenType::LessEqual)
+                } else {
+                    Ok(TokenType::Less)
+                }
+            }
+            '>' => {
+                if self.next_matches('=') {
+                    lexeme.push(self.next().unwrap());
+                    Ok(TokenType::GreaterEqual)
+                } else {
+                    Ok(TokenType::Greater)
+                }
+            }
+            '=' => {
+                if self.next_matches('=') {
+                    lexeme.push(self.next().unwrap());
+                    Ok(TokenType::EqualEqual)
+                } else {
+                    Ok(TokenType::Equal)
+                }
+            }
+            '!' => {
+                if self.next_matches('=') {
+                    lexeme.push(self.next().unwrap());
+                    Ok(TokenType::NotEqual)
+                } else {
+                    Ok(TokenType::Not)
+                }
+            }
+            _ => {
+                if Self::is_digit(char_rep) {
+                    loop {
+                        if self.next_type().is_none()
+                            || !Self::is_numeric(self.peek_next().unwrap())
+                        {
+                            break;
+                        } else {
+                            lexeme.push(self.next().unwrap());
+                        }
+                    }
+
+                    Ok(TokenType::Number)
+                } else if Self::is_alphabetic(char_rep) {
+                    loop {
+                        if self.next_type().is_none()
+                            || !Self::is_alphanumeric(self.peek_next().unwrap())
+                        {
+                            break;
+                        } else {
+                            lexeme.push(self.next().unwrap());
+                        }
+                    }
+
+                    Ok(Self::process_identifier(&lexeme.iter().collect::<String>()))
+                } else {
+                    return Err("unknown character".into());
+                }
+            }
+        }
+    }
+
+    fn add_token(&mut self, _type: TokenType, lexeme: String, line: usize, column: usize) {
         let token = Token {
             _type,
             lexeme,
-            line: self.current_row,
-            column: self.current_col,
+            line,
+            column,
         };
         self.tokens.push(token);
     }
 
     fn process_identifier(identifier: &str) -> TokenType {
         match identifier {
-            "and" => TokenType::And,
             "class" => TokenType::Class,
             "else" => TokenType::Else,
             "false" => TokenType::False,
             "for" => TokenType::For,
             "if" => TokenType::If,
-            "or" => TokenType::Or,
             "print" => TokenType::Print,
             "return" => TokenType::Return,
             "super" => TokenType::Super,
@@ -305,7 +363,7 @@ mod tests {
 
     #[test]
     fn captures_two_character_tokens() {
-        let content = "<=<>=>";
+        let content = "<=<>=>||&&";
         let scanner = Scanner::new(content.into()).unwrap();
 
         let eexpected = vec![
@@ -313,32 +371,32 @@ mod tests {
             (TokenType::Less, "<".to_string(), 1, 3),
             (TokenType::GreaterEqual, ">=".to_string(), 1, 4),
             (TokenType::Greater, ">".to_string(), 1, 6),
+            (TokenType::Or, "||".into(), 1, 7),
+            (TokenType::And, "&&".into(), 1, 9),
         ];
         assert_expected_tokens(scanner, eexpected);
     }
 
     #[test]
     fn captures_identifiers_accurately() {
-        let content = "and class else false for if or print return super true let while some_identifier someIdentifier identifier32";
+        let content = "class else false for if print return super true let while some_identifier someIdentifier identifier32";
         let scanner = Scanner::new(content.into()).unwrap();
 
         let expected = vec![
-            (TokenType::And, "and".to_string(), 1, 1),
-            (TokenType::Class, "class".to_string(), 1, 5),
-            (TokenType::Else, "else".to_string(), 1, 11),
-            (TokenType::False, "false".to_string(), 1, 16),
-            (TokenType::For, "for".to_string(), 1, 22),
-            (TokenType::If, "if".to_string(), 1, 26),
-            (TokenType::Or, "or".to_string(), 1, 29),
-            (TokenType::Print, "print".to_string(), 1, 32),
-            (TokenType::Return, "return".to_string(), 1, 38),
-            (TokenType::Super, "super".to_string(), 1, 45),
-            (TokenType::True, "true".to_string(), 1, 51),
-            (TokenType::Let, "let".to_string(), 1, 56),
-            (TokenType::While, "while".to_string(), 1, 60),
-            (TokenType::Identifier, "some_identifier".to_string(), 1, 66),
-            (TokenType::Identifier, "someIdentifier".to_string(), 1, 82),
-            (TokenType::Identifier, "identifier32".to_string(), 1, 97),
+            (TokenType::Class, "class".to_string(), 1, 1),
+            (TokenType::Else, "else".to_string(), 1, 7),
+            (TokenType::False, "false".to_string(), 1, 12),
+            (TokenType::For, "for".to_string(), 1, 18),
+            (TokenType::If, "if".to_string(), 1, 22),
+            (TokenType::Print, "print".to_string(), 1, 25),
+            (TokenType::Return, "return".to_string(), 1, 31),
+            (TokenType::Super, "super".to_string(), 1, 38),
+            (TokenType::True, "true".to_string(), 1, 44),
+            (TokenType::Let, "let".to_string(), 1, 49),
+            (TokenType::While, "while".to_string(), 1, 53),
+            (TokenType::Identifier, "some_identifier".to_string(), 1, 59),
+            (TokenType::Identifier, "someIdentifier".to_string(), 1, 75),
+            (TokenType::Identifier, "identifier32".to_string(), 1, 90),
         ];
         assert_expected_tokens(scanner, expected);
     }
