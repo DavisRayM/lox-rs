@@ -1,6 +1,7 @@
 use crate::{Environment, EvaluationError, Literal, Token, TokenType};
 
 #[derive(Clone, Debug)]
+/// These are instructions for the interpreter to perform
 pub enum Expression {
     Unary(Token, Box<Expression>),
     Binary(Box<Expression>, Token, Box<Expression>),

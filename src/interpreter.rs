@@ -4,6 +4,20 @@ use std::error::Error;
 use std::fs;
 use std::path::PathBuf;
 
+/// Interpreter implementation for the lox language
+///
+/// The interpreter can be used to parse and execute lox statements.
+///
+/// ## Examples
+/// ```rust
+/// use lox::Interpreter;
+///
+/// let greeting = String::from("let greeting = \"Hello World\"\ngreeting");
+/// let mut interpreter = Interpreter::new(greeting);
+/// let strict_mode = true;
+///
+/// interpreter.interpret(strict_mode);
+/// ```
 pub struct Interpreter {
     content: String,
     enclosing: Environment,

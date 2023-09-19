@@ -1,4 +1,5 @@
 #[derive(Clone, Debug)]
+/// Literal value in the lox interpreter environment
 pub enum Literal {
     Number(f32),
     String(String),
