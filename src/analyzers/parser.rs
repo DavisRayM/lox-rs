@@ -41,17 +41,8 @@
 ///              | IDENTIFIER ;
 use crate::{
     errors::{ExceptionType, ParserError},
-    expression::Expression,
-    token::{Token, TokenType},
+    types::{Expression, Statement, Token, TokenType},
 };
-
-#[derive(Debug, Clone)]
-pub enum Statement {
-    Expression(Expression),
-    Variable(Expression),
-    Assign(Token, Expression),
-    Block(Vec<Statement>),
-}
 
 pub type ParserResult<T> = Result<T, ParserError>;
 
@@ -293,7 +284,7 @@ impl Parser {
 mod tests {
     use super::*;
     use crate::get_statement_string;
-    use crate::scanner::Scanner;
+    use crate::Scanner;
 
     fn assert_statement_scenarios(scenarios: Vec<(String, String)>) {
         for (scenario, expected) in scenarios.iter() {

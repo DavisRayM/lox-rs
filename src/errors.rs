@@ -1,6 +1,33 @@
 use std::fmt;
 
-use crate::token::Token;
+use crate::Token;
+
+#[derive(Clone, Debug)]
+pub struct EvaluationError {
+    msg: String,
+    line: usize,
+    column: usize,
+}
+
+impl EvaluationError {
+    pub fn new(msg: &str, line: usize, column: usize) -> Self {
+        Self {
+            msg: msg.into(),
+            line,
+            column,
+        }
+    }
+}
+
+impl fmt::Display for EvaluationError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "evaluation error: {} at line {} column {}",
+            self.msg, self.line, self.column
+        )
+    }
+}
 
 #[derive(Clone, Debug)]
 pub struct InterpreterError {

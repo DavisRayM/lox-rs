@@ -3,6 +3,10 @@ use crate::{
     token::{Token, TokenType},
 };
 
+pub type ScannerResult<T> = Result<T, ScanError>;
+
+// Addition of single characters to the syntax should be done
+// here
 const SINGLE_CHAR_TOKENS: [TokenType; 11] = [
     TokenType::RightParen,
     TokenType::LeftParen,
@@ -36,8 +40,6 @@ pub struct Scanner {
     current_col: usize,
     current_row: usize,
 }
-
-pub type ScannerResult<T> = Result<T, ScanError>;
 
 impl Scanner {
     pub fn new(source: &str) -> ScannerResult<Self> {

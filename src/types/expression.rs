@@ -1,35 +1,4 @@
-use std::fmt;
-
-use crate::literal::Literal;
-use crate::token::{Token, TokenType};
-use crate::Environment;
-
-#[derive(Clone, Debug)]
-pub struct EvaluationError {
-    msg: String,
-    line: usize,
-    column: usize,
-}
-
-impl EvaluationError {
-    fn new(msg: &str, line: usize, column: usize) -> Self {
-        Self {
-            msg: msg.into(),
-            line,
-            column,
-        }
-    }
-}
-
-impl fmt::Display for EvaluationError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "evaluation error: {} at line {} column {}",
-            self.msg, self.line, self.column
-        )
-    }
-}
+use crate::{Environment, EvaluationError, Literal, Token, TokenType};
 
 #[derive(Clone, Debug)]
 pub enum Expression {

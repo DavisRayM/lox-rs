@@ -1,10 +1,7 @@
+mod analyzers;
 pub mod errors;
-pub mod expression;
-pub mod literal;
-pub mod parser;
 pub mod repl;
-pub mod scanner;
-pub mod token;
+mod types;
 
 use std::{
     collections::HashMap,
@@ -13,11 +10,10 @@ use std::{
     path::PathBuf,
 };
 
-use errors::InterpreterError;
-use literal::Literal;
-use parser::{Parser, Statement};
+use analyzers::*;
+use errors::{EvaluationError, InterpreterError};
 pub use repl::{run_file, run_prompt};
-use scanner::Scanner;
+use types::*;
 
 #[cfg(test)]
 pub fn get_statement_string(statement: Statement) -> String {
@@ -122,10 +118,7 @@ impl Interpreter {
 
         Ok(())
     }
-    fn evaluate_statements(
-        &mut self,
-        statements: Vec<Statement>,
-    ) -> Result<(), expression::EvaluationError> {
+    fn evaluate_statements(&mut self, statements: Vec<Statement>) -> Result<(), EvaluationError> {
         for statement in statements {
             self.evaluate_statement(statement)?;
         }
@@ -135,7 +128,7 @@ impl Interpreter {
     fn evaluate_statement(
         &mut self,
         statement: Statement,
-    ) -> Result<Option<Literal>, expression::EvaluationError> {
+    ) -> Result<Option<Literal>, EvaluationError> {
         match statement {
             Statement::Expression(expr) => Ok(Some(expr.evaluate(&self.enclosing)?)),
             Statement::Block(statements) => {

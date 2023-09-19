@@ -1,4 +1,24 @@
-use core::fmt;
+use std::fmt;
+
+/// Token identified during lexical analysis
+#[derive(Debug, Clone)]
+pub struct Token {
+    pub _type: TokenType,
+    pub lexeme: String,
+    pub line: usize,
+    pub column: usize,
+}
+
+impl Token {
+    pub fn new(lexeme: &str, line: usize, column: usize, _type: TokenType) -> Self {
+        Self {
+            lexeme: lexeme.to_string(),
+            line,
+            column,
+            _type,
+        }
+    }
+}
 
 /// Type of a token
 #[derive(Debug, Clone, PartialEq)]
@@ -124,26 +144,6 @@ impl TryFrom<char> for TokenType {
             '\r' => Ok(TokenType::CarriageReturn),
             ' ' => Ok(TokenType::Space),
             _ => Ok(TokenType::Identifier),
-        }
-    }
-}
-
-/// Token identified during lexical analysis
-#[derive(Debug, Clone)]
-pub struct Token {
-    pub _type: TokenType,
-    pub lexeme: String,
-    pub line: usize,
-    pub column: usize,
-}
-
-impl Token {
-    pub fn new(lexeme: &str, line: usize, column: usize, _type: TokenType) -> Self {
-        Self {
-            lexeme: lexeme.to_string(),
-            line,
-            column,
-            _type,
         }
     }
 }
