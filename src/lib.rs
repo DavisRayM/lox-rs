@@ -21,13 +21,14 @@ use scanner::Scanner;
 
 #[cfg(test)]
 pub fn get_statement_string(statement: Statement) -> String {
+    let environment = Environment::default();
     match statement {
         Statement::Assign(token, expr) => {
-            let str_rep: String = expr.evaluate().unwrap().into();
+            let str_rep: String = expr.evaluate(&environment).unwrap().into();
             format!("let {} = {};", token.lexeme, str_rep)
         }
-        Statement::Variable(expr) => expr.evaluate().unwrap().into(),
-        Statement::Expression(expr) => expr.evaluate().unwrap().into(),
+        Statement::Variable(expr) => expr.evaluate(&environment).unwrap().into(),
+        Statement::Expression(expr) => expr.evaluate(&environment).unwrap().into(),
         Statement::Block(statements) => {
             let mut actual = String::new();
             for statement in statements {
@@ -39,58 +40,62 @@ pub fn get_statement_string(statement: Statement) -> String {
     }
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug)]
 pub struct Environment {
-    values: HashMap<String, Literal>,
-    parent: Option<Box<Environment>>,
+    scopes: Vec<HashMap<String, Literal>>,
+    depth: usize,
+}
+
+impl Default for Environment {
+    fn default() -> Self {
+        let scopes = vec![HashMap::new()];
+        Self { scopes, depth: 0 }
+    }
 }
 
 impl Environment {
-    fn new(parent: Environment) -> Self {
-        Self {
-            values: HashMap::default(),
-            parent: Some(Box::new(parent)),
-        }
+    pub fn define(&mut self, name: String, value: Literal) {
+        self.scopes[self.depth].insert(name, value);
     }
 
-    pub fn define(&mut self, name: String, value: Literal) {
-        self.values.insert(name, value);
+    pub fn enter_block(&mut self) {
+        self.depth += 1;
+        self.scopes[self.depth] = HashMap::new();
+    }
+
+    pub fn leave_block(&mut self) {
+        self.scopes.remove(self.depth);
+        self.depth -= 1;
     }
 
     pub fn get(&self, name: String) -> Option<Literal> {
-        match self.values.get(&name).cloned() {
-            None => {
-                if let Some(parent) = self.parent.as_ref() {
-                    parent.get(name)
-                } else {
-                    None
-                }
+        for i in 0..=self.depth {
+            let option = self.scopes[self.depth - i].get(&name);
+            if let Some(option) = option {
+                return Some(option.clone());
             }
-            Some(val) => Some(val),
         }
+        None
     }
 }
 
 pub struct Interpreter {
     content: String,
-    global_env: Environment,
-    current_env: Option<Environment>,
+    enclosing: Environment,
 }
 
 impl Interpreter {
     pub fn new(content: String) -> Self {
         Self {
             content,
-            global_env: Environment::default(),
-            current_env: None,
+            enclosing: Environment::default(),
         }
     }
 
     pub fn from_file(path: PathBuf) -> Result<Self, Box<dyn Error>> {
         Ok(Self {
             content: fs::read_to_string(path)?,
-            global_env: Environment::default(),
-            current_env: None,
+            enclosing: Environment::default(),
         })
     }
 
@@ -106,22 +111,17 @@ impl Interpreter {
             .parse()
             .map_err(|e| InterpreterError { msg: e.to_string() })?;
         for statement in statements {
-            self.evaluate_statement(statement)
+            let literal = self
+                .evaluate_statement(statement)
                 .map_err(|e| InterpreterError { msg: e.to_string() })?;
+            if let Some(literal) = literal {
+                let literal: String = literal.into();
+                println!("{}", literal);
+            }
         }
 
-        println!("{:#?}", self.global_env);
         Ok(())
     }
-
-    fn get_from_env(&self, key: String) -> Option<Literal> {
-        if let Some(environment) = self.current_env.as_ref() {
-            environment.get(key)
-        } else {
-            self.global_env.get(key)
-        }
-    }
-
     fn evaluate_statements(
         &mut self,
         statements: Vec<Statement>,
@@ -137,33 +137,18 @@ impl Interpreter {
         statement: Statement,
     ) -> Result<Option<Literal>, expression::EvaluationError> {
         match statement {
-            Statement::Expression(expr) => Ok(Some(expr.evaluate()?)),
+            Statement::Expression(expr) => Ok(Some(expr.evaluate(&self.enclosing)?)),
             Statement::Block(statements) => {
-                let parent_env = self.current_env.clone();
-                match parent_env {
-                    Some(parent_env) => {
-                        self.current_env = Some(Environment::new(parent_env.clone()));
-                        self.evaluate_statements(statements)?;
-                        self.current_env = Some(parent_env);
-                        Ok(None)
-                    }
-                    None => {
-                        self.evaluate_statements(statements)?;
-                        Ok(None)
-                    }
-                }
+                self.enclosing.enter_block();
+                self.evaluate_statements(statements)?;
+                self.enclosing.leave_block();
+                Ok(None)
             }
-            Statement::Variable(expr) => {
-                if let Literal::Variable(name) = expr.evaluate()? {
-                    println!("Got {}", name);
-                    Ok(self.get_from_env(name))
-                } else {
-                    Ok(None)
-                }
-            }
-            Statement::Assign(token, literal) => {
-                let name = token.lexeme;
-                self.global_env.define(name, literal.evaluate()?);
+            Statement::Variable(expr) => Ok(Some(expr.evaluate(&self.enclosing)?)),
+            Statement::Assign(token, expr) => {
+                let name = token.lexeme.to_owned();
+                let literal = expr.evaluate(&self.enclosing)?;
+                self.enclosing.define(name, literal);
                 Ok(None)
             }
         }

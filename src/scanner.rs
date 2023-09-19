@@ -29,10 +29,6 @@ const FORMATTING_TOKENS: [TokenType; 4] = [
 /// The scanner performs lexical analysis on string content afterwhich it
 /// provides access to the token read from the content. Panics if invalid
 /// token is read.
-///
-/// # Panics
-///
-/// Panics if an invalid token is found.
 pub struct Scanner {
     pub tokens: Vec<Token>,
     source: Vec<char>,

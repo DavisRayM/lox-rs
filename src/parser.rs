@@ -145,26 +145,10 @@ impl Parser {
 
         if self.matches(vec![TokenType::Equal]) {
             let name = self.previous();
-            let equals = self.consume();
-            let rexpr = self.parse_assignment()?;
+            self.consume();
+            let rexpr = self.parse_expression()?;
 
-            match rexpr {
-                Expression::Variable(_) => Ok(Expression::Assignment(
-                    name.clone(),
-                    rexpr.evaluate().map_err(|_| {
-                        ParserError::new(
-                            "invalid assignment",
-                            &name,
-                            ExceptionType::RuntimeException,
-                        )
-                    })?,
-                )),
-                _ => Err(ParserError::new(
-                    "invalid assignment target",
-                    &equals,
-                    ExceptionType::RuntimeException,
-                )),
-            }
+            Ok(Expression::Assignment(name, Box::new(rexpr)))
         } else {
             Ok(expr)
         }

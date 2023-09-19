@@ -2,6 +2,7 @@ use std::fmt;
 
 use crate::literal::Literal;
 use crate::token::{Token, TokenType};
+use crate::Environment;
 
 #[derive(Clone, Debug)]
 pub struct EvaluationError {
@@ -37,16 +38,20 @@ pub enum Expression {
     Grouping(Box<Expression>),
     Literal(Token),
     Variable(Token),
-    Assignment(Token, Literal),
+    Assignment(Token, Box<Expression>),
 }
 
 impl Expression {
-    pub fn evaluate(&self) -> Result<Literal, EvaluationError> {
+    pub fn evaluate(&self, environment: &Environment) -> Result<Literal, EvaluationError> {
         match self {
-            Expression::Grouping(expr) => expr.evaluate(),
+            Expression::Grouping(expr) => expr.evaluate(environment),
             Expression::Variable(token) => {
                 if token._type == TokenType::Identifier {
-                    Ok(Literal::Variable(token.lexeme.clone()))
+                    if let Some(literal) = environment.get(token.lexeme.clone()) {
+                        Ok(literal)
+                    } else {
+                        Ok(Literal::Variable(token.lexeme.clone()))
+                    }
                 } else {
                     Err(EvaluationError::new(
                         "unexpected variable type",
@@ -55,10 +60,9 @@ impl Expression {
                     ))
                 }
             }
-            Expression::Assignment(token, literal) => {
-                if token._type == TokenType::Identifier {
-                    let literal = literal.clone();
-                    Ok(Literal::Assignment(token.lexeme.clone(), Box::new(literal)))
+            Expression::Assignment(token, expr) => {
+                if let Expression::Variable(_) = expr.as_ref() {
+                    expr.evaluate(environment)
                 } else {
                     Err(EvaluationError::new(
                         "unqualified variable name",
@@ -68,7 +72,7 @@ impl Expression {
                 }
             }
             Expression::Unary(token, expr) => {
-                let right = expr.evaluate()?;
+                let right = expr.evaluate(environment)?;
                 match token._type {
                     TokenType::Minus => {
                         if let Literal::Number(value) = right {
@@ -100,8 +104,8 @@ impl Expression {
                 }
             }
             Expression::Binary(expr, token, rexpr) => {
-                let left = expr.evaluate()?;
-                let right = rexpr.evaluate()?;
+                let left = expr.evaluate(environment)?;
+                let right = rexpr.evaluate(environment)?;
                 let values = (left, right);
 
                 match values {
