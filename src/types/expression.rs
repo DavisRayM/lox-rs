@@ -156,7 +156,8 @@ impl From<Expression> for String {
 
 #[cfg(test)]
 mod tests {
-    use crate::{get_statement_string, parser::Parser, scanner::Scanner};
+    use crate::analyzers::{Parser, Scanner};
+    use crate::get_statement_string;
 
     fn evaluate_statement(expr: &str) -> String {
         let scanner = Scanner::new(expr.into()).unwrap();

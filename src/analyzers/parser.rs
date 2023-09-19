@@ -283,8 +283,8 @@ impl Parser {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::analyzers::Scanner;
     use crate::get_statement_string;
-    use crate::Scanner;
 
     fn assert_statement_scenarios(scenarios: Vec<(String, String)>) {
         for (scenario, expected) in scenarios.iter() {
