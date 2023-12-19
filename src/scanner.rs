@@ -1,0 +1,331 @@
+//! Lexical Analyzer(Lexer)
+
+use crate::{
+    errors::ScannerError,
+    token::{Token, TokenBuilder},
+    token_type::TokenType,
+    LocationInfo,
+};
+
+/// Lexical scanner/analyzer
+///
+/// Scanner reads through the `source` passed in and extracts `Token`s from the
+/// code
+pub struct Scanner {
+    source: Vec<char>,
+    pub tokens: Vec<Token>,
+    pub loc: LocationInfo,
+}
+
+impl Scanner {
+    pub fn new(source: String) -> Self {
+        Self {
+            source: source.chars().collect(),
+            tokens: Vec::new(),
+            loc: LocationInfo {
+                column: 0,
+                line: 1,
+                len: 0,
+            },
+        }
+    }
+
+    pub fn run(&mut self) -> Result<(), ScannerError> {
+        loop {
+            // Terminate scanner if theres nothing else to scan
+            if self.is_at_end() {
+                break Ok(());
+            }
+
+            self.scan_token()?;
+        }
+    }
+
+    fn scan_token(&mut self) -> Result<(), ScannerError> {
+        let builder = TokenBuilder::default().location(self.loc.column, self.loc.line);
+        let ch = self.next();
+
+        match ch {
+            ' ' | '\r' | '\t' => (),
+            '\n' => self.loc.line += 1,
+            '(' => self._add_token([ch].to_vec(), TokenType::LeftParen, builder),
+            ')' => self._add_token([ch].to_vec(), TokenType::RightParen, builder),
+            '{' => self._add_token([ch].to_vec(), TokenType::LeftBrace, builder),
+            '}' => self._add_token([ch].to_vec(), TokenType::RightBrace, builder),
+            ',' => self._add_token([ch].to_vec(), TokenType::Comma, builder),
+            '.' => self._add_token([ch].to_vec(), TokenType::Dot, builder),
+            '-' => self._add_token([ch].to_vec(), TokenType::Minus, builder),
+            '+' => self._add_token([ch].to_vec(), TokenType::Plus, builder),
+            ';' => self._add_token([ch].to_vec(), TokenType::Comma, builder),
+            '*' => self._add_token([ch].to_vec(), TokenType::Star, builder),
+            '!' => {
+                if let Some(extra_ch) = self.next_if(Box::new(|ch: char| ch == '=')) {
+                    self._add_token([ch, extra_ch].to_vec(), TokenType::BangEqual, builder)
+                } else {
+                    self._add_token([ch].to_vec(), TokenType::Bang, builder)
+                }
+            }
+            '=' => {
+                if let Some(extra_ch) = self.next_if(Box::new(|ch: char| ch == '=')) {
+                    self._add_token([ch, extra_ch].to_vec(), TokenType::EqualEqual, builder)
+                } else {
+                    self._add_token([ch].to_vec(), TokenType::Equal, builder)
+                }
+            }
+            '<' => {
+                if let Some(extra_ch) = self.next_if(Box::new(|ch: char| ch == '=')) {
+                    self._add_token([ch, extra_ch].to_vec(), TokenType::LessEqual, builder)
+                } else {
+                    self._add_token([ch].to_vec(), TokenType::Less, builder)
+                }
+            }
+            '>' => {
+                if let Some(extra_ch) = self.next_if(Box::new(|ch: char| ch == '=')) {
+                    self._add_token([ch, extra_ch].to_vec(), TokenType::GreaterEqual, builder)
+                } else {
+                    self._add_token([ch].to_vec(), TokenType::Greater, builder)
+                }
+            }
+            '/' => {
+                if self.next_if(Box::new(|ch: char| ch == '/')).is_some() {
+                    // Discard the comment
+                    while self.peek() != '\n' && !self.is_at_end() {
+                        self.next();
+                    }
+                } else {
+                    self._add_token([ch].to_vec(), TokenType::Slash, builder)
+                }
+            }
+            '"' => self._add_string(builder)?,
+            ch => {
+                // Check if character is a number before raising an error
+                if ch.is_ascii_digit() {
+                    self._add_number(builder.append_lexeme(ch));
+                } else {
+                    return Err(ScannerError {
+                        cause: format!("unexpected character: {}", ch),
+                        location: builder.build().loc,
+                    });
+                }
+            }
+        };
+
+        Ok(())
+    }
+
+    fn peek(&self) -> char {
+        if self.is_at_end() {
+            return '\0';
+        }
+
+        self.source[self.loc.len]
+    }
+
+    fn peek_next(&self) -> char {
+        if self.is_at_end() || self.loc.len + 1 >= self.source.len() {
+            return '\0';
+        }
+
+        self.source[self.loc.len + 1]
+    }
+
+    fn next(&mut self) -> char {
+        let ch = self.source[self.loc.len];
+
+        self.loc.len += 1;
+        self.loc.column += 1;
+
+        ch
+    }
+
+    fn next_if(&mut self, func: Box<dyn Fn(char) -> bool>) -> Option<char> {
+        if self.is_at_end() {
+            return None;
+        }
+
+        let ch = self.source[self.loc.len];
+        if func(ch) {
+            Some(self.next())
+        } else {
+            None
+        }
+    }
+
+    fn is_at_end(&self) -> bool {
+        self.loc.len == self.source.len()
+    }
+
+    fn _add_token(&mut self, chars: Vec<char>, token_type: TokenType, builder: TokenBuilder) {
+        let mut builder = builder.token_type(token_type);
+
+        for ch in chars {
+            builder = builder.append_lexeme(ch);
+        }
+
+        self.tokens.push(builder.build());
+    }
+
+    fn _add_string(&mut self, builder: TokenBuilder) -> Result<(), ScannerError> {
+        let mut builder = builder
+            .token_type(TokenType::String)
+            // Set location to the first character of the string
+            // This felt more appropriate at the time but i might change
+            // my mind in the future
+            .location(self.loc.column, self.loc.line);
+
+        while self.peek() != '"' && !self.is_at_end() {
+            if self.peek() == '\n' {
+                self.loc.line += 1;
+            }
+
+            builder = builder.append_lexeme(self.next());
+        }
+
+        if self.is_at_end() {
+            return Err(ScannerError {
+                cause: "unterminated string".to_string(),
+                location: builder.build().loc,
+            });
+        }
+
+        // Discard the closing quotation marks
+        self.next();
+        self.tokens.push(builder.build());
+        Ok(())
+    }
+
+    fn _add_number(&mut self, builder: TokenBuilder) -> Result<(), ScannerError> {
+        let mut builder = builder.token_type(TokenType::Number);
+
+        while self.peek().is_ascii_digit() {
+            builder = builder.append_lexeme(self.next());
+        }
+
+        if self.peek() == '.' && self.peek_next().is_ascii_digit() {
+            builder = builder.append_lexeme(self.next());
+
+            while self.peek().is_ascii_digit() {
+                builder = builder.append_lexeme(self.next());
+            }
+        }
+
+        let literal: f64 = builder
+            .current_lexeme()
+            .parse::<f64>()
+            .map_err(|_| ScannerError {
+                cause: "failed to parse numeric value".to_string(),
+                location: self.loc.clone(),
+            })?;
+
+        self.tokens.push(builder.literal(literal).build());
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use crate::token::Literal;
+
+    use super::*;
+
+    #[test]
+    fn comments_are_discarded() {
+        const SOURCE: &str = r#"// much comment such wow
+// i also know how to comment
+(( )){} // here are some tokens!"#;
+        let mut s = Scanner::new(SOURCE.to_string());
+        s.run().unwrap();
+
+        assert_eq!(s.tokens.len(), 6);
+        assert_eq!(
+            s.loc,
+            LocationInfo {
+                column: SOURCE.len(),
+                line: 3,
+                len: SOURCE.len()
+            }
+        );
+    }
+
+    #[test]
+    fn string_is_correctly_added() {
+        const SOURCE: &str = "\"hello\" \"world!\"";
+        let expected: [Token; 2] = [
+            Token {
+                token_type: TokenType::String,
+                lexeme: "hello".to_string(),
+                literal: Literal::String,
+                loc: LocationInfo {
+                    column: 1,
+                    line: 1,
+                    len: 5,
+                },
+            },
+            Token {
+                token_type: TokenType::String,
+                lexeme: "world!".to_string(),
+                literal: Literal::String,
+                loc: LocationInfo {
+                    column: 9,
+                    line: 1,
+                    len: 6,
+                },
+            },
+        ];
+
+        let mut s = Scanner::new(SOURCE.to_string());
+        s.run().unwrap();
+
+        assert_eq!(s.tokens, expected.to_vec());
+    }
+
+    #[test]
+    fn numbers_are_correctly_scanned() {
+        const SOURCE: &str = "25 25.03 4343";
+        let expected: [Token; 3] = [
+            Token {
+                token_type: TokenType::Number,
+                lexeme: "25".to_string(),
+                literal: Literal::Number(25_f64),
+                loc: LocationInfo {
+                    column: 0,
+                    line: 1,
+                    len: 2,
+                },
+            },
+            Token {
+                token_type: TokenType::Number,
+                lexeme: "25.03".to_string(),
+                literal: Literal::Number(25.03_f64),
+                loc: LocationInfo {
+                    column: 3,
+                    line: 1,
+                    len: 5,
+                },
+            },
+            Token {
+                token_type: TokenType::Number,
+                lexeme: "4343".to_string(),
+                literal: Literal::Number(4343_f64),
+                loc: LocationInfo {
+                    column: 9,
+                    line: 1,
+                    len: 4,
+                },
+            },
+        ];
+
+        let mut s = Scanner::new(SOURCE.to_string());
+        s.run().unwrap();
+
+        assert_eq!(s.tokens, expected.to_vec());
+    }
+
+    #[test]
+    #[should_panic]
+    fn unterminated_string_is_caught() {
+        const SOURCE: &str = "\"Hello worl";
+        let mut s = Scanner::new(SOURCE.to_string());
+        s.run().unwrap();
+    }
+}
