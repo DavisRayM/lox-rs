@@ -17,6 +17,24 @@ pub struct Scanner {
     pub loc: LocationInfo,
 }
 
+const IDENTIFIERS: [(&str, TokenType); 15] = [
+    ("and", TokenType::And),
+    ("class", TokenType::Class),
+    ("else", TokenType::Else),
+    ("false", TokenType::False),
+    ("for", TokenType::For),
+    ("if", TokenType::If),
+    ("nil", TokenType::Nil),
+    ("or", TokenType::Or),
+    ("print", TokenType::Print),
+    ("return", TokenType::Return),
+    ("super", TokenType::Super),
+    ("this", TokenType::This),
+    ("true", TokenType::True),
+    ("var", TokenType::Var),
+    ("while", TokenType::While),
+];
+
 impl Scanner {
     pub fn new(source: String) -> Self {
         Self {
@@ -98,9 +116,12 @@ impl Scanner {
             }
             '"' => self._add_string(builder)?,
             ch => {
-                // Check if character is a number before raising an error
+                // Check if character is a number or identifier
+                // before raising an error
                 if ch.is_ascii_digit() {
-                    self._add_number(builder.append_lexeme(ch));
+                    self._add_number(builder.append_lexeme(ch))?;
+                } else if _is_alpha(ch) {
+                    self._add_identifier(builder.append_lexeme(ch));
                 } else {
                     return Err(ScannerError {
                         cause: format!("unexpected character: {}", ch),
@@ -151,7 +172,7 @@ impl Scanner {
         }
     }
 
-    fn is_at_end(&self) -> bool {
+    pub fn is_at_end(&self) -> bool {
         self.loc.len == self.source.len()
     }
 
@@ -220,6 +241,30 @@ impl Scanner {
         self.tokens.push(builder.literal(literal).build());
         Ok(())
     }
+
+    fn _add_identifier(&mut self, builder: TokenBuilder) {
+        let mut builder = builder.token_type(TokenType::Identifier);
+
+        while !self.is_at_end() && (self.peek().is_ascii_alphanumeric() || self.peek() == '_') {
+            builder = builder.append_lexeme(self.next());
+        }
+
+        let mut token_type = IDENTIFIERS
+            .iter()
+            .filter(|(s, _)| *s == builder.current_lexeme())
+            .map(|(_, t)| t.clone())
+            .collect::<Vec<TokenType>>();
+
+        if token_type.len() == 1 {
+            builder = builder.token_type(token_type.pop().unwrap());
+        }
+
+        self.tokens.push(builder.build());
+    }
+}
+
+fn _is_alpha(ch: char) -> bool {
+    ch.is_ascii_lowercase() || ch.is_ascii_uppercase() || ch == '_'
 }
 
 #[cfg(test)]
@@ -277,6 +322,58 @@ mod test {
         s.run().unwrap();
 
         assert_eq!(s.tokens, expected.to_vec());
+    }
+
+    #[test]
+    fn identifiers_are_correctly_scanned() {
+        const SOURCE: &str = "and super this some_var";
+        let expected: [Token; 4] = [
+            Token {
+                token_type: TokenType::And,
+                lexeme: "and".to_string(),
+                literal: Literal::String,
+                loc: LocationInfo {
+                    column: 0,
+                    line: 1,
+                    len: 3,
+                },
+            },
+            Token {
+                token_type: TokenType::Super,
+                lexeme: "super".to_string(),
+                literal: Literal::String,
+                loc: LocationInfo {
+                    column: 4,
+                    line: 1,
+                    len: 5,
+                },
+            },
+            Token {
+                token_type: TokenType::This,
+                lexeme: "this".to_string(),
+                literal: Literal::String,
+                loc: LocationInfo {
+                    column: 10,
+                    line: 1,
+                    len: 4,
+                },
+            },
+            Token {
+                token_type: TokenType::Identifier,
+                lexeme: "some_var".to_string(),
+                literal: Literal::String,
+                loc: LocationInfo {
+                    column: 15,
+                    line: 1,
+                    len: 8,
+                },
+            },
+        ];
+
+        let mut s = Scanner::new(SOURCE.to_string());
+        s.run().unwrap();
+
+        assert_eq!(s.tokens, expected);
     }
 
     #[test]

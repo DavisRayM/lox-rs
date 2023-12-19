@@ -4,7 +4,7 @@ use std::{
     path::PathBuf,
 };
 
-use crate::errors::RunnerError;
+use crate::{errors::RunnerError, scanner::Scanner};
 
 /// Lox interpreter runner
 pub struct Runner {
@@ -52,7 +52,31 @@ impl Runner {
     }
 
     fn _run(&mut self, content: &str) -> Result<(), RunnerError> {
-        todo!()
+        let mut s = Scanner::new(content.to_string());
+        // TODO: At some point i'll probably just use `is_at_end` or something
+        // but i'm sleepy
+        let mut finished: bool = false;
+
+        while !finished {
+            let res = s.run();
+            match res {
+                Ok(_) => finished = true,
+                Err(e) => {
+                    // TODO: This seems a bit janky to me...
+                    // Should think about how syntax errors are reported
+                    // -- Thought about it and this might just depend on whether
+                    // -- the runner is on file mode or terminal
+                    // -- Terminal users can avoid the panic but file mode
+                    // -- users are out of luck
+                    println!("{} at {}:{}", e.cause, e.location.line, e.location.column);
+                }
+            }
+
+            // TODO: REMOVE THIS!
+            eprintln!("{:#?}", s.tokens);
+        }
+
+        Ok(())
     }
 
     fn _run_repl(&mut self) -> Result<(), RunnerError> {
