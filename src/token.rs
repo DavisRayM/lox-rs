@@ -1,6 +1,7 @@
 use crate::token_type::TokenType;
 use crate::LocationInfo;
 
+/// Valid word in the language grammar
 #[derive(Debug, Clone)]
 pub struct Token {
     pub token_type: TokenType,
@@ -9,6 +10,9 @@ pub struct Token {
     pub loc: LocationInfo,
 }
 
+/// Literal representation of a number
+///
+/// TODO: Add booleans to this list!
 #[derive(Debug, Clone)]
 pub enum Literal {
     Number(f64),
@@ -23,6 +27,8 @@ impl PartialEq for Token {
     }
 }
 
+/// QOL Token interface; I suggest you use this if you ever
+/// want to build tokens...
 pub struct TokenBuilder {
     token: Token,
 }

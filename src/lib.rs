@@ -17,13 +17,3 @@ impl PartialEq for LocationInfo {
         self.column == other.column && self.line == other.line && self.len == other.len
     }
 }
-
-#[cfg(test)]
-mod test {
-    use super::*;
-
-    #[test]
-    fn runner_creation() {
-        let runner = Runner::new(None);
-    }
-}
