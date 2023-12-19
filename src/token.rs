@@ -69,9 +69,9 @@ impl TokenBuilder {
         self
     }
 
-    pub fn literal(mut self, literal: f64) -> Self {
+    pub fn literal(mut self, literal: Literal) -> Self {
         let token = &mut self.token;
-        token.literal = Literal::Number(literal);
+        token.literal = literal;
 
         self
     }

@@ -1,8 +1,7 @@
 //! Lexical Analyzer(Lexer)
-
 use crate::{
     errors::ScannerError,
-    token::{Token, TokenBuilder},
+    token::{Literal, Token, TokenBuilder},
     token_type::TokenType,
     LocationInfo,
 };
@@ -238,7 +237,8 @@ impl Scanner {
                 location: self.loc.clone(),
             })?;
 
-        self.tokens.push(builder.literal(literal).build());
+        self.tokens
+            .push(builder.literal(Literal::Number(literal)).build());
         Ok(())
     }
 
@@ -269,8 +269,6 @@ fn _is_alpha(ch: char) -> bool {
 
 #[cfg(test)]
 mod test {
-    use crate::token::Literal;
-
     use super::*;
 
     #[test]
