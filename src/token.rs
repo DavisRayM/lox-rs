@@ -16,6 +16,7 @@ pub struct Token {
 #[derive(Debug, Clone)]
 pub enum Literal {
     Number(f64),
+    Boolean(bool),
     String,
 }
 

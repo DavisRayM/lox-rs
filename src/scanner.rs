@@ -256,7 +256,11 @@ impl Scanner {
             .collect::<Vec<TokenType>>();
 
         if token_type.len() == 1 {
-            builder = builder.token_type(token_type.pop().unwrap());
+            let token_type = token_type.pop().expect("expected a token type");
+            if token_type == TokenType::True || token_type == TokenType::False {
+                builder = builder.literal(Literal::Boolean(token_type == TokenType::True));
+            }
+            builder = builder.token_type(token_type);
         }
 
         self.tokens.push(builder.build());
