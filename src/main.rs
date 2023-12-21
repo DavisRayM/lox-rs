@@ -1,4 +1,4 @@
-use flavored_lox::{errors::RunnerError, Runner};
+use lox_rs::{errors::RunnerError, Runner};
 use std::env;
 
 fn main() -> Result<(), RunnerError> {
