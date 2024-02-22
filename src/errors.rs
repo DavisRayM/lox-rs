@@ -32,3 +32,15 @@ impl fmt::Display for ScannerError {
         )
     }
 }
+
+/// Parser encountered an error while parsing expressions
+#[derive(Debug, Clone)]
+pub(crate) struct ParserError {
+    pub cause: String,
+}
+
+impl fmt::Display for ParserError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.cause)
+    }
+}

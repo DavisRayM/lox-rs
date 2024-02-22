@@ -1,11 +1,13 @@
 pub mod errors;
+mod expression;
+mod parser;
 mod runner;
 mod scanner;
 mod token;
 mod token_type;
 pub use runner::Runner;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub(crate) struct LocationInfo {
     column: usize,
     line: usize,

@@ -4,7 +4,7 @@ use std::{
     path::PathBuf,
 };
 
-use crate::{errors::RunnerError, scanner::Scanner};
+use crate::{errors::RunnerError, parser::Parser, scanner::Scanner};
 
 /// Lox interpreter runner
 pub struct Runner {
@@ -53,14 +53,20 @@ impl Runner {
 
     fn _run(&mut self, content: &str) -> Result<(), RunnerError> {
         let mut s = Scanner::new(content.to_string());
-        // TODO: At some point i'll probably just use `is_at_end` or something
-        // but i'm sleepy
+        if let Err(e) = s.run() {
+            println!("{} at {}:{}", e.cause, e.location.line, e.location.column);
+            return Ok(());
+        }
+
+        let mut p = Parser::new(s.tokens);
         let mut finished: bool = false;
 
         while !finished {
-            let res = s.run();
+            let res = p.parse();
             match res {
-                Ok(_) => finished = true,
+                Ok(expr) => {
+                    println!("{}", expr.display_text());
+                }
                 Err(e) => {
                     // TODO: This seems a bit janky to me...
                     // Should think about how syntax errors are reported
@@ -68,12 +74,10 @@ impl Runner {
                     // -- the runner is on file mode or terminal
                     // -- Terminal users can avoid the panic but file mode
                     // -- users are out of luck
-                    println!("{} at {}:{}", e.cause, e.location.line, e.location.column);
+                    eprintln!("{}", e);
                 }
             }
-
-            // TODO: REMOVE THIS!
-            eprintln!("{:#?}", s.tokens);
+            finished = true;
         }
 
         Ok(())
