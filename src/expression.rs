@@ -1,7 +1,7 @@
-use core::panic;
 use std::error::Error;
 
 use crate::{
+    errors::RuntimeError,
     token::{self, Literal, Token},
     token_type::TokenType,
 };
@@ -14,61 +14,73 @@ pub enum Expression {
 }
 
 impl Expression {
-    pub fn eval(&self) -> Literal {
-        // TODO: RUNTIME ERRORS
+    pub fn eval(&self) -> Result<Literal, RuntimeError> {
         match self {
-            Self::Literal(literal) => literal.to_owned(),
+            Self::Literal(literal) => Ok(literal.to_owned()),
             Self::Group(expr) => expr.eval(),
             Self::Unary(op, right) => {
-                let right = right.eval();
+                let right = right.eval()?;
                 match op.token_type {
                     TokenType::Minus => {
                         if let Literal::Number(num) = right {
-                            Literal::Number(-num)
+                            Ok(Literal::Number(-num))
                         } else {
-                            panic!("- operator can only be used on numerical values");
+                            Err(RuntimeError {
+                                cause: "'-' can only be used on numerical values.".to_string(),
+                            })
                         }
                     }
                     TokenType::Bang => {
                         if let Literal::Boolean(b) = right {
-                            Literal::Boolean(!b)
+                            Ok(Literal::Boolean(!b))
                         } else {
-                            panic!("! operator can only be used on boolean values")
+                            Err(RuntimeError {
+                                cause: "! operator can only be used on boolean values.".to_string(),
+                            })
                         }
                     }
-                    _ => panic!("not expected"),
+                    _ => Err(RuntimeError {
+                        cause: format!("unexpected operator {:?}", op.token_type),
+                    }),
                 }
             }
             Self::Binary(left, op, right) => {
-                let left = left.eval();
-                let right = right.eval();
+                let left = left.eval()?;
+                let right = right.eval()?;
 
                 if let Literal::Number(left) = left {
                     if let Literal::Number(right) = right {
                         match op.token_type {
-                            TokenType::Minus => return Literal::Number(left - right),
-                            TokenType::Slash => return Literal::Number(left / right),
-                            TokenType::Star => return Literal::Number(left * right),
-                            TokenType::Plus => return Literal::Number(left + right),
-                            TokenType::Greater => return Literal::Boolean(left > right),
-                            TokenType::GreaterEqual => return Literal::Boolean(left >= right),
-                            TokenType::Less => return Literal::Boolean(left < right),
-                            TokenType::LessEqual => return Literal::Boolean(left <= right),
-                            _ => panic!("unsupported operand \"{}\"", op.lexeme),
+                            TokenType::Minus => return Ok(Literal::Number(left - right)),
+                            TokenType::Slash => return Ok(Literal::Number(left / right)),
+                            TokenType::Star => return Ok(Literal::Number(left * right)),
+                            TokenType::Plus => return Ok(Literal::Number(left + right)),
+                            TokenType::Greater => return Ok(Literal::Boolean(left > right)),
+                            TokenType::GreaterEqual => return Ok(Literal::Boolean(left >= right)),
+                            TokenType::Less => return Ok(Literal::Boolean(left < right)),
+                            TokenType::LessEqual => return Ok(Literal::Boolean(left <= right)),
+                            _ => {
+                                return Err(RuntimeError {
+                                    cause: format!("unexpected operator {:?}", op.token_type),
+                                })
+                            }
                         }
                     }
                 }
 
                 match op.token_type {
-                    TokenType::BangEqual => Literal::Boolean(left != right),
-                    TokenType::EqualEqual => Literal::Boolean(left == right),
-                    _ => panic!("can not evaluate expression"),
+                    TokenType::BangEqual => Ok(Literal::Boolean(left != right)),
+                    TokenType::EqualEqual => Ok(Literal::Boolean(left == right)),
+                    _ => Err(RuntimeError {
+                        cause: "invalid expression".to_string(),
+                    }),
                 }
             }
         }
     }
 
-    pub fn display_text(&self) -> String {
+    #[allow(dead_code)]
+    pub(crate) fn display_text(&self) -> String {
         match self {
             Self::Group(expr) => {
                 format!("(group {})", expr.display_text())

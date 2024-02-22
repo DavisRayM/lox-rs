@@ -44,3 +44,18 @@ impl fmt::Display for ParserError {
         write!(f, "{}", self.cause)
     }
 }
+
+/// Runtime error
+///
+/// Errors encountered during runtime; These usually happen when exceptions
+/// are evaluated
+#[derive(Debug, Clone)]
+pub(crate) struct RuntimeError {
+    pub cause: String,
+}
+
+impl fmt::Display for RuntimeError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.cause)
+    }
+}

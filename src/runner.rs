@@ -65,7 +65,7 @@ impl Runner {
             let res = p.parse();
             match res {
                 Ok(expr) => {
-                    let literal = expr.eval();
+                    let literal = expr.eval().unwrap();
                     println!("{}", literal);
                 }
                 Err(e) => {
