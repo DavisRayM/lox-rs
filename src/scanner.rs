@@ -1,7 +1,7 @@
 //! Lexical Analyzer(Lexer)
 use crate::{
     errors::ScannerError,
-    token::{Literal, Token, TokenBuilder},
+    token::{Token, TokenBuilder},
     token_type::TokenType,
     LocationInfo,
 };
@@ -48,9 +48,20 @@ impl Scanner {
     }
 
     pub fn run(&mut self) -> Result<(), ScannerError> {
+        if let Some(last) = self.tokens.last() {
+            if last.token_type == TokenType::Eof {
+                return Ok(());
+            }
+        }
+
         loop {
             // Terminate scanner if theres nothing else to scan
             if self.is_at_end() {
+                self._add_token(
+                    vec![],
+                    TokenType::Eof,
+                    TokenBuilder::default().location(self.loc.column, self.loc.line),
+                );
                 break Ok(());
             }
 
@@ -208,7 +219,6 @@ impl Scanner {
             });
         }
 
-        // Discard the closing quotation marks
         self.next();
         self.tokens.push(builder.build());
         Ok(())
@@ -229,16 +239,8 @@ impl Scanner {
             }
         }
 
-        let literal: f64 = builder
-            .current_lexeme()
-            .parse::<f64>()
-            .map_err(|_| ScannerError {
-                cause: "failed to parse numeric value".to_string(),
-                location: self.loc.clone(),
-            })?;
+        self.tokens.push(builder.build());
 
-        self.tokens
-            .push(builder.literal(Literal::Number(literal)).build());
         Ok(())
     }
 
@@ -257,9 +259,6 @@ impl Scanner {
 
         if token_type.len() == 1 {
             let token_type = token_type.pop().expect("expected a token type");
-            if token_type == TokenType::True || token_type == TokenType::False {
-                builder = builder.literal(Literal::Boolean(token_type == TokenType::True));
-            }
             builder = builder.token_type(token_type);
         }
 
@@ -274,6 +273,7 @@ fn _is_alpha(ch: char) -> bool {
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::token::Literal;
 
     #[test]
     fn comments_are_discarded() {
@@ -283,7 +283,7 @@ mod test {
         let mut s = Scanner::new(SOURCE.to_string());
         s.run().unwrap();
 
-        assert_eq!(s.tokens.len(), 6);
+        assert_eq!(s.tokens.len(), 7);
         assert_eq!(
             s.loc,
             LocationInfo {
@@ -297,11 +297,11 @@ mod test {
     #[test]
     fn string_is_correctly_added() {
         const SOURCE: &str = "\"hello\" \"world!\"";
-        let expected: [Token; 2] = [
+        let expected: [Token; 3] = [
             Token {
                 token_type: TokenType::String,
                 lexeme: "hello".to_string(),
-                literal: Literal::String,
+                literal: Literal::String("hello".chars().collect::<Vec<char>>()),
                 loc: LocationInfo {
                     column: 1,
                     line: 1,
@@ -311,11 +311,21 @@ mod test {
             Token {
                 token_type: TokenType::String,
                 lexeme: "world!".to_string(),
-                literal: Literal::String,
+                literal: Literal::String("world!".chars().collect::<Vec<char>>()),
                 loc: LocationInfo {
                     column: 9,
                     line: 1,
                     len: 6,
+                },
+            },
+            Token {
+                token_type: TokenType::Eof,
+                lexeme: "".to_string(),
+                literal: Literal::None,
+                loc: LocationInfo {
+                    column: 16,
+                    line: 1,
+                    len: 0,
                 },
             },
         ];
@@ -329,11 +339,11 @@ mod test {
     #[test]
     fn identifiers_are_correctly_scanned() {
         const SOURCE: &str = "and super this some_var";
-        let expected: [Token; 4] = [
+        let expected: [Token; 5] = [
             Token {
                 token_type: TokenType::And,
                 lexeme: "and".to_string(),
-                literal: Literal::String,
+                literal: Literal::String("and".chars().collect::<Vec<char>>()),
                 loc: LocationInfo {
                     column: 0,
                     line: 1,
@@ -343,7 +353,7 @@ mod test {
             Token {
                 token_type: TokenType::Super,
                 lexeme: "super".to_string(),
-                literal: Literal::String,
+                literal: Literal::String("super".chars().collect::<Vec<char>>()),
                 loc: LocationInfo {
                     column: 4,
                     line: 1,
@@ -353,7 +363,7 @@ mod test {
             Token {
                 token_type: TokenType::This,
                 lexeme: "this".to_string(),
-                literal: Literal::String,
+                literal: Literal::String("super".chars().collect::<Vec<char>>()),
                 loc: LocationInfo {
                     column: 10,
                     line: 1,
@@ -363,11 +373,21 @@ mod test {
             Token {
                 token_type: TokenType::Identifier,
                 lexeme: "some_var".to_string(),
-                literal: Literal::String,
+                literal: Literal::String("super".chars().collect::<Vec<char>>()),
                 loc: LocationInfo {
                     column: 15,
                     line: 1,
                     len: 8,
+                },
+            },
+            Token {
+                token_type: TokenType::Eof,
+                lexeme: "".to_string(),
+                literal: Literal::None,
+                loc: LocationInfo {
+                    column: 23,
+                    line: 1,
+                    len: 0,
                 },
             },
         ];
@@ -381,7 +401,7 @@ mod test {
     #[test]
     fn numbers_are_correctly_scanned() {
         const SOURCE: &str = "25 25.03 4343";
-        let expected: [Token; 3] = [
+        let expected: [Token; 4] = [
             Token {
                 token_type: TokenType::Number,
                 lexeme: "25".to_string(),
@@ -410,6 +430,16 @@ mod test {
                     column: 9,
                     line: 1,
                     len: 4,
+                },
+            },
+            Token {
+                token_type: TokenType::Eof,
+                lexeme: "".to_string(),
+                literal: Literal::None,
+                loc: LocationInfo {
+                    column: 13,
+                    line: 1,
+                    len: 0,
                 },
             },
         ];
