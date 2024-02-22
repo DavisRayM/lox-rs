@@ -8,6 +8,9 @@
 //! Unary       ! -         Right
 //!
 //! Productions (Low -> High Precedence):
+//! program        → statement* EOF ;
+//! statement      → varStmt | exprStmt ;
+//! exprStmt       → expression ";" ;
 //! expression     → equality ;
 //! equality       → comparison ( ( "!=" | "==" ) comparison )* ;
 //! comparison     → term ( ( ">" | ">=" | "<" | "<=" ) term )* ;
@@ -21,26 +24,44 @@
 use crate::{
     errors::ParserError,
     expression::{Expression, ExpressionBuilder},
+    statement::Statement,
     token::{Literal, Token},
     token_type::TokenType,
 };
 
+/// Language parser
+///
+/// Parses a list of tokens into an Expression tree that can then be evaluated.
 pub struct Parser {
     tokens: Vec<Token>,
     curr: usize,
 }
 
 impl Parser {
+    /// Create a new parser that can be used to generate an expression tree
     pub fn new(tokens: Vec<Token>) -> Self {
         Self { tokens, curr: 0 }
     }
 
-    pub fn run(&mut self) -> Result<(), ParserError> {
-        todo!()
+    /// Generates an expression tree from the configured tokens list
+    pub fn parse(&mut self) -> Result<Vec<Statement>, ParserError> {
+        let mut statements: Vec<Statement> = Vec::new();
+
+        while !self.is_at_end() {
+            statements.push(self.statement()?);
+        }
+
+        Ok(statements)
     }
 
-    pub fn parse(&mut self) -> Result<Expression, ParserError> {
-        self.expression()
+    fn statement(&mut self) -> Result<Statement, ParserError> {
+        self.expr_statement()
+    }
+
+    fn expr_statement(&mut self) -> Result<Statement, ParserError> {
+        let expr = self.expression()?;
+        self.consume(TokenType::Semicolon, "expected ';' after expression.")?;
+        Ok(Statement::Expr(expr))
     }
 
     fn synchronize(&mut self) {
@@ -63,7 +84,6 @@ impl Parser {
     }
 
     fn consume(&mut self, _type: TokenType, msg: &str) -> Result<(), ParserError> {
-        // TODO: Implement error reporting
         if self.check(&_type) {
             self.advance();
             return Ok(());
@@ -238,20 +258,23 @@ impl Parser {
 
 #[cfg(test)]
 mod test {
-    use crate::scanner::Scanner;
+    use crate::{interpreter::ActionType, scanner::Scanner};
 
     use super::*;
 
     #[test]
     fn syntax_tree_parsed_correctly() {
-        let source = "(5 * 2) + 1 - 2".to_string();
+        let source = "(5 * 2) + 1 - 2;".to_string();
         let mut scanner = Scanner::new(source);
         scanner.run().unwrap();
-        eprintln!("{:?}", scanner.tokens);
-        let mut parser = Parser::new(scanner.tokens);
 
+        let mut parser = Parser::new(scanner.tokens);
         let expr = parser.parse().unwrap();
 
-        assert_eq!("(- (+ (group (* 5 2)) 1) 2)", expr.display_text())
+        assert_eq!(1, expr.len());
+        let action = expr[0].eval().unwrap();
+
+        assert_eq!(ActionType::None, action._type);
+        assert_eq!(Literal::Number(9_f64), action.value);
     }
 }

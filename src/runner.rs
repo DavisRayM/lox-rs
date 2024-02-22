@@ -4,7 +4,7 @@ use std::{
     path::PathBuf,
 };
 
-use crate::{errors::RunnerError, parser::Parser, scanner::Scanner};
+use crate::{errors::RunnerError, interpreter::Interpreter, parser::Parser, scanner::Scanner};
 
 /// Lox interpreter runner
 pub struct Runner {
@@ -59,15 +59,14 @@ impl Runner {
         }
 
         let mut p = Parser::new(s.tokens);
+        let mut intp = Interpreter::new(io::stdout());
+
         let mut finished: bool = false;
 
         while !finished {
             let res = p.parse();
             match res {
-                Ok(expr) => {
-                    let literal = expr.eval().unwrap();
-                    println!("{}", literal);
-                }
+                Ok(stmt) => stmt.iter().for_each(|stmt| intp.evaluate(stmt).unwrap()),
                 Err(e) => {
                     // TODO: This seems a bit janky to me...
                     // Should think about how syntax errors are reported
