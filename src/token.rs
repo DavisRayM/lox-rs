@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use crate::token_type::TokenType;
 use crate::LocationInfo;
 
@@ -17,6 +19,46 @@ pub enum Literal {
     Boolean(bool),
     String(Vec<char>),
     None,
+}
+
+impl Display for Literal {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Number(v) => write!(f, "{}", v),
+            Self::String(v) => write!(f, "{}", v.iter().collect::<String>()),
+            Self::Boolean(v) => write!(f, "{}", v),
+            Self::None => write!(f, ""),
+        }
+    }
+}
+
+impl PartialEq for Literal {
+    fn eq(&self, other: &Self) -> bool {
+        match self {
+            Self::Number(num) => {
+                if let Self::Number(other_n) = other {
+                    num == other_n
+                } else {
+                    false
+                }
+            }
+            Self::Boolean(b) => {
+                if let Self::Boolean(other_b) = other {
+                    b == other_b
+                } else {
+                    false
+                }
+            }
+            Self::String(string) => {
+                if let Self::String(other_s) = other {
+                    string.iter().zip(other_s).filter(|&(a, b)| a == b).count() == string.len()
+                } else {
+                    false
+                }
+            }
+            Self::None => other == &Self::None,
+        }
+    }
 }
 
 impl PartialEq for Token {

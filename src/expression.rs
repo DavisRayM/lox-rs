@@ -1,6 +1,10 @@
+use core::panic;
 use std::error::Error;
 
-use crate::token::{self, Literal, Token};
+use crate::{
+    token::{self, Literal, Token},
+    token_type::TokenType,
+};
 
 pub enum Expression {
     Binary(Box<Expression>, Token, Box<Expression>),
@@ -10,6 +14,60 @@ pub enum Expression {
 }
 
 impl Expression {
+    pub fn eval(&self) -> Literal {
+        // TODO: RUNTIME ERRORS
+        match self {
+            Self::Literal(literal) => literal.to_owned(),
+            Self::Group(expr) => expr.eval(),
+            Self::Unary(op, right) => {
+                let right = right.eval();
+                match op.token_type {
+                    TokenType::Minus => {
+                        if let Literal::Number(num) = right {
+                            Literal::Number(-num)
+                        } else {
+                            panic!("- operator can only be used on numerical values");
+                        }
+                    }
+                    TokenType::Bang => {
+                        if let Literal::Boolean(b) = right {
+                            Literal::Boolean(!b)
+                        } else {
+                            panic!("! operator can only be used on boolean values")
+                        }
+                    }
+                    _ => panic!("not expected"),
+                }
+            }
+            Self::Binary(left, op, right) => {
+                let left = left.eval();
+                let right = right.eval();
+
+                if let Literal::Number(left) = left {
+                    if let Literal::Number(right) = right {
+                        match op.token_type {
+                            TokenType::Minus => return Literal::Number(left - right),
+                            TokenType::Slash => return Literal::Number(left / right),
+                            TokenType::Star => return Literal::Number(left * right),
+                            TokenType::Plus => return Literal::Number(left + right),
+                            TokenType::Greater => return Literal::Boolean(left > right),
+                            TokenType::GreaterEqual => return Literal::Boolean(left >= right),
+                            TokenType::Less => return Literal::Boolean(left < right),
+                            TokenType::LessEqual => return Literal::Boolean(left <= right),
+                            _ => panic!("unsupported operand \"{}\"", op.lexeme),
+                        }
+                    }
+                }
+
+                match op.token_type {
+                    TokenType::BangEqual => Literal::Boolean(left != right),
+                    TokenType::EqualEqual => Literal::Boolean(left == right),
+                    _ => panic!("can not evaluate expression"),
+                }
+            }
+        }
+    }
+
     pub fn display_text(&self) -> String {
         match self {
             Self::Group(expr) => {
