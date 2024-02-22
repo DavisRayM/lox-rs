@@ -84,7 +84,7 @@ impl Scanner {
             '.' => self._add_token([ch].to_vec(), TokenType::Dot, builder),
             '-' => self._add_token([ch].to_vec(), TokenType::Minus, builder),
             '+' => self._add_token([ch].to_vec(), TokenType::Plus, builder),
-            ';' => self._add_token([ch].to_vec(), TokenType::Comma, builder),
+            ';' => self._add_token([ch].to_vec(), TokenType::Semicolon, builder),
             '*' => self._add_token([ch].to_vec(), TokenType::Star, builder),
             '!' => {
                 if let Some(extra_ch) = self.next_if(Box::new(|ch: char| ch == '=')) {
