@@ -11,13 +11,12 @@ pub struct Token {
 }
 
 /// Literal representation of a number
-///
-/// TODO: Add booleans to this list!
 #[derive(Debug, Clone)]
 pub enum Literal {
     Number(f64),
     Boolean(bool),
-    String,
+    String(Vec<char>),
+    None,
 }
 
 impl PartialEq for Token {
@@ -40,7 +39,7 @@ impl TokenBuilder {
             token: Token {
                 token_type: TokenType::Identifier,
                 lexeme: String::new(),
-                literal: Literal::String,
+                literal: Literal::None,
                 loc: LocationInfo {
                     column: 0,
                     line: 0,
@@ -70,13 +69,6 @@ impl TokenBuilder {
         self
     }
 
-    pub fn literal(mut self, literal: Literal) -> Self {
-        let token = &mut self.token;
-        token.literal = literal;
-
-        self
-    }
-
     pub fn token_type(mut self, token_type: TokenType) -> Self {
         let token = &mut self.token;
         token.token_type = token_type;
@@ -84,7 +76,20 @@ impl TokenBuilder {
         self
     }
 
-    pub fn build(self) -> Token {
+    pub fn build(mut self) -> Token {
+        match self.token.token_type {
+            TokenType::True | TokenType::False => {
+                self.token.literal = Literal::Boolean(self.token.token_type == TokenType::True)
+            }
+            TokenType::Number => {
+                self.token.literal = Literal::Number(self.current_lexeme().parse().unwrap())
+            }
+            TokenType::Eof => {}
+            _ => {
+                self.token.literal =
+                    Literal::String(self.current_lexeme().chars().collect::<Vec<char>>())
+            }
+        }
         self.token
     }
 }
