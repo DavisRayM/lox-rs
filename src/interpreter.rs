@@ -1,14 +1,22 @@
-use std::{fmt::Display, io};
+use std::{
+    fmt::Display,
+    io,
+    sync::{Arc, Mutex},
+};
 
 use crate::{
-    environment::Environment, errors::RuntimeError, expression::Expression, statement::Statement,
-    token::Literal, token_type::TokenType,
+    environment::Environment,
+    errors::{ParserError, RuntimeError},
+    expression::Expression,
+    statement::Statement,
+    token::Literal,
+    token_type::TokenType,
 };
 
 pub struct Interpreter<T: io::Write> {
     out: T,
     debug: bool,
-    env: Box<Environment>,
+    env: Arc<Mutex<Environment>>,
 }
 
 impl<T: io::Write> Interpreter<T> {
@@ -16,7 +24,7 @@ impl<T: io::Write> Interpreter<T> {
         Self {
             out,
             debug: false,
-            env: Box::new(Environment::new()),
+            env: Arc::new(Mutex::new(Environment::new())),
         }
     }
 
@@ -37,13 +45,23 @@ impl<T: io::Write> Interpreter<T> {
 
                 if let Some(expr) = expr {
                     let val = self.evaluate_expression(expr)?;
-                    self.env.define(name, val)?;
+                    self.env.lock().unwrap().define(name, val)?;
                 } else {
-                    self.env.define(name, Literal::None)?;
+                    self.env.lock().unwrap().define(name, Literal::None)?;
                 }
             }
             Statement::Expr(expr) => {
                 self.evaluate_expression(expr)?;
+            }
+            Statement::Block(stmts) => {
+                let previous = Arc::clone(&self.env);
+
+                let env = Mutex::new(Environment::new());
+                env.lock().unwrap().enclosing(Arc::clone(&self.env));
+                self.env = Arc::new(env);
+
+                stmts.iter().try_for_each(|s| self.evaluate_statement(s))?;
+                self.env = previous;
             }
         }
 
@@ -52,10 +70,13 @@ impl<T: io::Write> Interpreter<T> {
 
     fn evaluate_expression(&mut self, expr: &Expression) -> Result<Literal, RuntimeError> {
         match expr {
-            Expression::Variable(name) => self.env.get(&name.lexeme),
+            Expression::Variable(name) => self.env.lock().unwrap().get(&name.lexeme),
             Expression::Assignment(name, expr) => {
                 let val = self.evaluate_expression(expr)?;
-                self.env.assign(name.lexeme.clone(), val.clone())?;
+                self.env
+                    .lock()
+                    .unwrap()
+                    .assign(name.lexeme.clone(), val.clone())?;
                 Ok(val)
             }
             Expression::Literal(literal) => Ok(literal.to_owned()),
@@ -125,5 +146,54 @@ impl<T: io::Write> Interpreter<T> {
         writeln!(&mut self.out, "{}", val).map_err(|e| RuntimeError {
             cause: format!("failed to print to console: {:?}", e),
         })
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use crate::{parser::Parser, scanner::Scanner};
+
+    use super::*;
+
+    #[test]
+    fn environment_tracks_variables() {
+        let source = "var a = \"global a\";\nvar b = \"global b\";\nvar c = \"global c\";";
+
+        let mut scanner = Scanner::new(source.trim().into());
+        scanner.run().unwrap();
+        let tokens = scanner.tokens;
+        eprintln!("{:#?}", tokens);
+        let mut parser = Parser::new(tokens, io::stderr());
+
+        let mut intp = Interpreter::new(io::stderr());
+        let stmts = parser.parse();
+        eprintln!("{:#?}", stmts);
+        intp.interpret(stmts).unwrap();
+
+        assert_eq!(
+            intp.env.lock().unwrap().get(&String::from("a")).unwrap(),
+            Literal::String("global a".chars().collect::<Vec<char>>())
+        );
+    }
+
+    #[test]
+    fn nested_blocks_preserve_env() {
+        let source = "var a = \"hello\";\n{\n    var a = \"world\";\n}\n";
+
+        let mut scanner = Scanner::new(source.trim().into());
+        scanner.run().unwrap();
+        let tokens = scanner.tokens;
+        eprintln!("{:#?}", tokens);
+        let mut parser = Parser::new(tokens, io::stderr());
+
+        let mut intp = Interpreter::new(io::stderr());
+        let stmts = parser.parse();
+        eprintln!("{:#?}", stmts);
+        intp.interpret(stmts).unwrap();
+
+        assert_eq!(
+            intp.env.lock().unwrap().get(&String::from("a")).unwrap(),
+            Literal::String("hello".chars().collect::<Vec<char>>())
+        );
     }
 }

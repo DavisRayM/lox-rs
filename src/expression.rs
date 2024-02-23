@@ -2,6 +2,7 @@ use std::error::Error;
 
 use crate::token::{self, Literal, Token};
 
+#[derive(Debug, Clone)]
 pub enum Expression {
     Binary(Box<Expression>, Token, Box<Expression>),
     Group(Box<Expression>),
