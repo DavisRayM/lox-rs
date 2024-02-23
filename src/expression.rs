@@ -8,6 +8,7 @@ pub enum Expression {
     Literal(token::Literal),
     Unary(Token, Box<Expression>),
     Variable(Token),
+    Assignment(Token, Box<Expression>),
 }
 
 impl Expression {
@@ -28,6 +29,9 @@ impl Expression {
             },
             Self::Unary(op, right) => {
                 format!("({} {})", op.lexeme, right.display_text())
+            }
+            Self::Assignment(name, expr) => {
+                format!("({} = {})", name.lexeme, expr.display_text())
             }
             Self::Binary(left, op, right) => {
                 format!(
@@ -96,7 +100,11 @@ impl ExpressionBuilder {
         if let Some(literal) = self.literal {
             Ok(Expression::Literal(literal))
         } else if let Some(var) = self.variable {
-            Ok(Expression::Variable(var))
+            if let Some(expr) = self.right {
+                Ok(Expression::Assignment(var, Box::new(expr)))
+            } else {
+                Ok(Expression::Variable(var))
+            }
         } else if let Some(expr) = self.group {
             Ok(Expression::Group(Box::new(expr)))
         } else if let Some(right) = self.right {

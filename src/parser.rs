@@ -140,6 +140,27 @@ impl<T: io::Write> Parser<T> {
         self.equality()
     }
 
+    fn assignment(&mut self) -> Result<Expression, ParserError> {
+        let expr = self.equality()?;
+
+        if self.matches_token(vec![TokenType::Equal]) {
+            let equals = self.previous();
+            let value = self.assignment()?;
+
+            match expr {
+                Expression::Variable(name) => Ok(Expression::Assignment(name, Box::new(value))),
+                _ => Err(ParserError {
+                    cause: format!(
+                        "invalid assignment target at {} {}",
+                        equals.loc.column, equals.loc.line
+                    ),
+                }),
+            }
+        } else {
+            Ok(expr)
+        }
+    }
+
     fn primary(&mut self) -> Result<Expression, ParserError> {
         let mut expr = ExpressionBuilder::new();
         if self.matches_token(vec![TokenType::False]) {

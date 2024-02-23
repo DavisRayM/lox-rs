@@ -30,14 +30,39 @@ impl<T: io::Write> Interpreter<T> {
             .try_for_each(|stmt| self.evaluate_statement(stmt))
     }
 
+    fn evaluate_statement(&mut self, stmt: &Statement) -> Result<(), RuntimeError> {
+        match stmt {
+            Statement::Var(name, expr) => {
+                let name = name.lexeme.clone();
+
+                if let Some(expr) = expr {
+                    let val = self.evaluate_expression(expr)?;
+                    self.env.define(name, val)?;
+                } else {
+                    self.env.define(name, Literal::None)?;
+                }
+            }
+            Statement::Expr(expr) => {
+                self.evaluate_expression(expr)?;
+            }
+        }
+
+        Ok(())
+    }
+
     fn evaluate_expression(&mut self, expr: &Expression) -> Result<Literal, RuntimeError> {
         match expr {
-            Expression::Variable(name) => match self.env.get(&name.lexeme) {
+            Expression::Variable(name) => match self.env.get(&name.lexeme)? {
                 Some(literal) => Ok(literal.to_owned()),
                 None => Err(RuntimeError {
                     cause: format!("undeclared variable '{}'", name.lexeme),
                 }),
             },
+            Expression::Assignment(name, expr) => {
+                let val = self.evaluate_expression(expr)?;
+                self.env.assign(name.lexeme.clone(), val.clone())?;
+                Ok(val)
+            }
             Expression::Literal(literal) => Ok(literal.to_owned()),
             Expression::Group(expr) => self.evaluate_expression(expr),
             Expression::Unary(op, right) => {
@@ -99,26 +124,6 @@ impl<T: io::Write> Interpreter<T> {
                 }
             }
         }
-    }
-
-    fn evaluate_statement(&mut self, stmt: &Statement) -> Result<(), RuntimeError> {
-        match stmt {
-            Statement::Var(name, expr) => {
-                let name = name.lexeme.clone();
-
-                if let Some(expr) = expr {
-                    let val = self.evaluate_expression(expr)?;
-                    self.env.define(name, val);
-                } else {
-                    self.env.define(name, Literal::None);
-                }
-            }
-            Statement::Expr(expr) => {
-                self.evaluate_expression(expr)?;
-            }
-        }
-
-        Ok(())
     }
 
     fn print_to_output(&mut self, val: impl Display) -> Result<(), RuntimeError> {

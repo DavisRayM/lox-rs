@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::token::Literal;
+use crate::{errors::RuntimeError, token::Literal};
 
 pub struct Environment {
     store: HashMap<String, Literal>,
@@ -13,11 +13,24 @@ impl Environment {
         }
     }
 
-    pub fn define(&mut self, k: String, v: Literal) {
+    pub fn define(&mut self, k: String, v: Literal) -> Result<(), RuntimeError> {
         self.store.insert(k, v);
+        Ok(())
     }
 
-    pub fn get(&self, k: &String) -> Option<&Literal> {
-        self.store.get(k)
+    #[allow(clippy::map_entry)]
+    pub fn assign(&mut self, k: String, v: Literal) -> Result<(), RuntimeError> {
+        if self.store.contains_key(&k) {
+            self.store.insert(k, v);
+            Ok(())
+        } else {
+            Err(RuntimeError {
+                cause: format!("undefined variable '{}'", k),
+            })
+        }
+    }
+
+    pub fn get(&self, k: &String) -> Result<Option<&Literal>, RuntimeError> {
+        Ok(self.store.get(k))
     }
 }
