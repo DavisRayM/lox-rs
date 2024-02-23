@@ -52,12 +52,7 @@ impl<T: io::Write> Interpreter<T> {
 
     fn evaluate_expression(&mut self, expr: &Expression) -> Result<Literal, RuntimeError> {
         match expr {
-            Expression::Variable(name) => match self.env.get(&name.lexeme)? {
-                Some(literal) => Ok(literal.to_owned()),
-                None => Err(RuntimeError {
-                    cause: format!("undeclared variable '{}'", name.lexeme),
-                }),
-            },
+            Expression::Variable(name) => self.env.get(&name.lexeme),
             Expression::Assignment(name, expr) => {
                 let val = self.evaluate_expression(expr)?;
                 self.env.assign(name.lexeme.clone(), val.clone())?;
