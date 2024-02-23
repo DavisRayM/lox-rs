@@ -58,26 +58,22 @@ impl Runner {
             return Ok(());
         }
 
-        let mut p = Parser::new(s.tokens);
+        let mut p = Parser::new(s.tokens, io::stdout());
+        let stmts = p.parse();
         let mut intp = Interpreter::new(io::stdout());
+        intp.debug(true);
 
-        let mut finished: bool = false;
-
-        while !finished {
-            let res = p.parse();
-            match res {
-                Ok(stmt) => stmt.iter().for_each(|stmt| intp.evaluate(stmt).unwrap()),
-                Err(e) => {
-                    // TODO: This seems a bit janky to me...
-                    // Should think about how syntax errors are reported
-                    // -- Thought about it and this might just depend on whether
-                    // -- the runner is on file mode or terminal
-                    // -- Terminal users can avoid the panic but file mode
-                    // -- users are out of luck
-                    eprintln!("{}", e);
-                }
+        match intp.interpret(stmts) {
+            Ok(_) => (),
+            Err(e) => {
+                // TODO: This seems a bit janky to me...
+                // Should think about how syntax errors are reported
+                // -- Thought about it and this might just depend on whether
+                // -- the runner is on file mode or terminal
+                // -- Terminal users can avoid the panic but file mode
+                // -- users are out of luck
+                eprintln!("{}", e);
             }
-            finished = true;
         }
 
         Ok(())
