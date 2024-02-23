@@ -1,87 +1,22 @@
 use std::error::Error;
 
-use crate::{
-    errors::RuntimeError,
-    token::{self, Literal, Token},
-    token_type::TokenType,
-};
+use crate::token::{self, Literal, Token};
 
 pub enum Expression {
     Binary(Box<Expression>, Token, Box<Expression>),
     Group(Box<Expression>),
     Literal(token::Literal),
     Unary(Token, Box<Expression>),
+    Variable(Token),
 }
 
 impl Expression {
-    pub fn eval(&self) -> Result<Literal, RuntimeError> {
-        match self {
-            Self::Literal(literal) => Ok(literal.to_owned()),
-            Self::Group(expr) => expr.eval(),
-            Self::Unary(op, right) => {
-                let right = right.eval()?;
-                match op.token_type {
-                    TokenType::Minus => {
-                        if let Literal::Number(num) = right {
-                            Ok(Literal::Number(-num))
-                        } else {
-                            Err(RuntimeError {
-                                cause: "'-' can only be used on numerical values.".to_string(),
-                            })
-                        }
-                    }
-                    TokenType::Bang => {
-                        if let Literal::Boolean(b) = right {
-                            Ok(Literal::Boolean(!b))
-                        } else {
-                            Err(RuntimeError {
-                                cause: "! operator can only be used on boolean values.".to_string(),
-                            })
-                        }
-                    }
-                    _ => Err(RuntimeError {
-                        cause: format!("unexpected operator {:?}", op.token_type),
-                    }),
-                }
-            }
-            Self::Binary(left, op, right) => {
-                let left = left.eval()?;
-                let right = right.eval()?;
-
-                if let Literal::Number(left) = left {
-                    if let Literal::Number(right) = right {
-                        match op.token_type {
-                            TokenType::Minus => return Ok(Literal::Number(left - right)),
-                            TokenType::Slash => return Ok(Literal::Number(left / right)),
-                            TokenType::Star => return Ok(Literal::Number(left * right)),
-                            TokenType::Plus => return Ok(Literal::Number(left + right)),
-                            TokenType::Greater => return Ok(Literal::Boolean(left > right)),
-                            TokenType::GreaterEqual => return Ok(Literal::Boolean(left >= right)),
-                            TokenType::Less => return Ok(Literal::Boolean(left < right)),
-                            TokenType::LessEqual => return Ok(Literal::Boolean(left <= right)),
-                            _ => {
-                                return Err(RuntimeError {
-                                    cause: format!("unexpected operator {:?}", op.token_type),
-                                })
-                            }
-                        }
-                    }
-                }
-
-                match op.token_type {
-                    TokenType::BangEqual => Ok(Literal::Boolean(left != right)),
-                    TokenType::EqualEqual => Ok(Literal::Boolean(left == right)),
-                    _ => Err(RuntimeError {
-                        cause: "invalid expression".to_string(),
-                    }),
-                }
-            }
-        }
-    }
-
     #[allow(dead_code)]
     pub(crate) fn display_text(&self) -> String {
         match self {
+            Self::Variable(var) => {
+                format!("(var {})", var.lexeme)
+            }
             Self::Group(expr) => {
                 format!("(group {})", expr.display_text())
             }
@@ -112,6 +47,7 @@ pub struct ExpressionBuilder {
     group: Option<Expression>,
     op: Option<Token>,
     literal: Option<token::Literal>,
+    variable: Option<Token>,
 }
 
 impl ExpressionBuilder {
@@ -122,6 +58,7 @@ impl ExpressionBuilder {
             op: None,
             literal: None,
             group: None,
+            variable: None,
         }
     }
 
@@ -150,9 +87,16 @@ impl ExpressionBuilder {
         self
     }
 
+    pub fn variable(mut self, name: Token) -> Self {
+        self.variable = Some(name);
+        self
+    }
+
     pub fn build(self) -> Result<Expression, Box<dyn Error>> {
         if let Some(literal) = self.literal {
             Ok(Expression::Literal(literal))
+        } else if let Some(var) = self.variable {
+            Ok(Expression::Variable(var))
         } else if let Some(expr) = self.group {
             Ok(Expression::Group(Box::new(expr)))
         } else if let Some(right) = self.right {

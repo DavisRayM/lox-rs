@@ -8,18 +8,23 @@
 //! Unary       ! -         Right
 //!
 //! Productions (Low -> High Precedence):
-//! program        → statement* EOF ;
+//! program        → declaration* EOF ;
+//! declaration    → varDecl | statement ;
+//! varDecl        → "var" IDENTIFIER ( "=" expression )? ";" ;
 //! statement      → varStmt | exprStmt ;
 //! exprStmt       → expression ";" ;
 //! expression     → equality ;
+//! assignment     → IDENTIFIER "=" assignment | equality ;
 //! equality       → comparison ( ( "!=" | "==" ) comparison )* ;
 //! comparison     → term ( ( ">" | ">=" | "<" | "<=" ) term )* ;
 //! term           → factor ( ( "-" | "+" ) factor )* ;
 //! factor         → unary ( ( "/" | "*" ) unary )* ;
 //! unary          → ( "!" | "-" ) unary
 //!                | primary ;
-//! primary        → NUMBER | STRING | "true" | "false" | "nil"
+//! primary        → NUMBER | STRING | "true" | "false" | "nil" | IDENTIFIER
 //!                | "(" expression ")" ;
+
+use std::io;
 
 use crate::{
     errors::ParserError,
@@ -32,26 +37,64 @@ use crate::{
 /// Language parser
 ///
 /// Parses a list of tokens into an Expression tree that can then be evaluated.
-pub struct Parser {
+pub struct Parser<T: io::Write> {
     tokens: Vec<Token>,
     curr: usize,
+    out: T,
 }
 
-impl Parser {
+impl<T: io::Write> Parser<T> {
     /// Create a new parser that can be used to generate an expression tree
-    pub fn new(tokens: Vec<Token>) -> Self {
-        Self { tokens, curr: 0 }
+    pub fn new(tokens: Vec<Token>, out: T) -> Self {
+        Self {
+            tokens,
+            curr: 0,
+            out,
+        }
     }
 
     /// Generates an expression tree from the configured tokens list
-    pub fn parse(&mut self) -> Result<Vec<Statement>, ParserError> {
+    pub fn parse(&mut self) -> Vec<Statement> {
         let mut statements: Vec<Statement> = Vec::new();
+        let mut error = false;
 
         while !self.is_at_end() {
-            statements.push(self.statement()?);
+            match self.declaration() {
+                Ok(stmt) => statements.push(stmt),
+                Err(e) => {
+                    error = true;
+                    writeln!(self.out, "{}", e).unwrap();
+                    self.synchronize();
+                }
+            }
         }
 
-        Ok(statements)
+        if !error {
+            statements
+        } else {
+            statements.clear();
+            statements
+        }
+    }
+
+    fn declaration(&mut self) -> Result<Statement, ParserError> {
+        if self.matches_token(vec![TokenType::Var]) {
+            return self.var_declaration();
+        }
+
+        self.statement()
+    }
+
+    fn var_declaration(&mut self) -> Result<Statement, ParserError> {
+        let name = self.consume(TokenType::Identifier, "expect a variable name")?;
+
+        let mut expr = None;
+        if self.matches_token(vec![TokenType::Equal]) {
+            expr = Some(self.expression()?);
+        }
+
+        self.consume(TokenType::RightParen, "expect ';' after declaration")?;
+        Ok(Statement::Var(name, expr))
     }
 
     fn statement(&mut self) -> Result<Statement, ParserError> {
@@ -83,10 +126,9 @@ impl Parser {
         }
     }
 
-    fn consume(&mut self, _type: TokenType, msg: &str) -> Result<(), ParserError> {
+    fn consume(&mut self, _type: TokenType, msg: &str) -> Result<Token, ParserError> {
         if self.check(&_type) {
-            self.advance();
-            return Ok(());
+            return Ok(self.advance());
         }
 
         Err(ParserError {
@@ -110,6 +152,8 @@ impl Parser {
             let group = self.expression()?;
             self.consume(TokenType::RightParen, "Expect ')' after expression.")?;
             expr = expr.group(group);
+        } else if self.matches_token(vec![TokenType::Identifier]) {
+            expr = expr.variable(self.previous());
         } else {
             return Err(ParserError {
                 cause: "Expect expression".into(),
@@ -258,7 +302,7 @@ impl Parser {
 
 #[cfg(test)]
 mod test {
-    use crate::{interpreter::ActionType, scanner::Scanner};
+    use crate::scanner::Scanner;
 
     use super::*;
 
@@ -268,13 +312,10 @@ mod test {
         let mut scanner = Scanner::new(source);
         scanner.run().unwrap();
 
-        let mut parser = Parser::new(scanner.tokens);
-        let expr = parser.parse().unwrap();
+        let sink = io::sink();
+        let mut parser = Parser::new(scanner.tokens, sink);
+        let stmt = parser.parse();
 
-        assert_eq!(1, expr.len());
-        let action = expr[0].eval().unwrap();
-
-        assert_eq!(ActionType::None, action._type);
-        assert_eq!(Literal::Number(9_f64), action.value);
+        assert_eq!(1, stmt.len());
     }
 }
