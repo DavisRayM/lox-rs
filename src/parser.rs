@@ -11,8 +11,9 @@
 //! program        → declaration* EOF ;
 //! declaration    → varDecl | statement ;
 //! varDecl        → "var" IDENTIFIER ( "=" expression )? ";" ;
-//! statement      → varStmt | exprStmt ;
+//! statement      → varStmt | exprStmt | block ;
 //! exprStmt       → expression ";" ;
+//! block          → "{" declaration "}" ;
 //! expression     → equality ;
 //! assignment     → IDENTIFIER "=" assignment | equality ;
 //! equality       → comparison ( ( "!=" | "==" ) comparison )* ;
@@ -79,10 +80,23 @@ impl<T: io::Write> Parser<T> {
 
     fn declaration(&mut self) -> Result<Statement, ParserError> {
         if self.matches_token(vec![TokenType::Var]) {
-            return self.var_declaration();
+            self.var_declaration()
+        } else if self.matches_token(vec![TokenType::LeftBrace]) {
+            self.block()
+        } else {
+            self.statement()
+        }
+    }
+
+    fn block(&mut self) -> Result<Statement, ParserError> {
+        let mut stmts = Vec::new();
+
+        while !self.check(&TokenType::RightBrace) && !self.is_at_end() {
+            stmts.push(self.declaration()?);
         }
 
-        self.statement()
+        self.consume(TokenType::RightBrace, "expect '}' after block")?;
+        Ok(Statement::Block(stmts))
     }
 
     fn var_declaration(&mut self) -> Result<Statement, ParserError> {
@@ -93,7 +107,7 @@ impl<T: io::Write> Parser<T> {
             expr = Some(self.expression()?);
         }
 
-        self.consume(TokenType::RightParen, "expect ';' after declaration")?;
+        self.consume(TokenType::Semicolon, "expect ';' after declaration")?;
         Ok(Statement::Var(name, expr))
     }
 
