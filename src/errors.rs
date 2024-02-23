@@ -37,6 +37,8 @@ impl fmt::Display for ScannerError {
 #[derive(Debug, Clone)]
 pub(crate) struct ParserError {
     pub cause: String,
+    // TODO: Add location info
+    // pub location: LocationInfo
 }
 
 impl fmt::Display for ParserError {
