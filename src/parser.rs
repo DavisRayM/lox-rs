@@ -9,20 +9,34 @@
 //!
 //! Productions (Low -> High Precedence):
 //! program        → declaration* EOF ;
-//! declaration    → varDecl | statement ;
+//! declaration    → varDecl
+//!                  | statement ;
 //! varDecl        → "var" IDENTIFIER ( "=" expression )? ";" ;
-//! statement      → varStmt | exprStmt | block ;
+//! statement      → varStmt
+//!                  | exprStmt
+//!                  | block
+//!                  | printStmt
+//!                  | ifStmt ;
+//! ifStmt         → "if" "(" expressiong ")" statement ("else" statement)? ;
+//! printStmt      → "print" expression ";" ;
 //! exprStmt       → expression ";" ;
 //! block          → "{" declaration "}" ;
-//! expression     → equality ;
-//! assignment     → IDENTIFIER "=" assignment | equality ;
+//! expression     → assignment ;
+//! assignment     → IDENTIFIER "=" assignment | logical_or ;
+//! logic_or       → logic_and ( "or" logic_and )* ;
+//! logic_and      → equality ( "and" equality )* ;
 //! equality       → comparison ( ( "!=" | "==" ) comparison )* ;
 //! comparison     → term ( ( ">" | ">=" | "<" | "<=" ) term )* ;
 //! term           → factor ( ( "-" | "+" ) factor )* ;
 //! factor         → unary ( ( "/" | "*" ) unary )* ;
 //! unary          → ( "!" | "-" ) unary
-//!                | primary ;
-//! primary        → NUMBER | STRING | "true" | "false" | "nil" | IDENTIFIER
+//!                  | primary ;
+//! primary        → NUMBER
+//!                  | STRING
+//!                  | "true"
+//!                  | "false"
+//!                  | "nil"
+//!                  | IDENTIFIER
 //!                | "(" expression ")" ;
 
 use std::io;
@@ -116,8 +130,24 @@ impl<T: io::Write> Parser<T> {
     fn statement(&mut self) -> Result<Statement, ParserError> {
         if self.matches_token(vec![TokenType::Print]) {
             return self.print_statement();
+        } else if self.matches_token(vec![TokenType::If]) {
+            return self.if_statement();
         }
         self.expr_statement()
+    }
+
+    fn if_statement(&mut self) -> Result<Statement, ParserError> {
+        self.consume(TokenType::LeftParen, "expect '(' after if condition")?;
+        let cond = self.expression()?;
+        self.consume(TokenType::RightParen, "expect ')' after if condition")?;
+
+        let then_branch = self.statement()?;
+        let mut else_branch: Option<Box<Statement>> = None;
+        if self.matches_token(vec![TokenType::Else]) {
+            else_branch = Some(Box::new(self.statement()?));
+        }
+
+        Ok(Statement::If(cond, Box::new(then_branch), else_branch))
     }
 
     fn print_statement(&mut self) -> Result<Statement, ParserError> {
@@ -169,8 +199,32 @@ impl<T: io::Write> Parser<T> {
         self.assignment()
     }
 
+    fn logical_or(&mut self) -> Result<Expression, ParserError> {
+        let mut expr = self.logical_and()?;
+
+        while self.matches_token(vec![TokenType::Or]) {
+            let op = self.previous();
+            let right = self.logical_and()?;
+            expr = Expression::Logical(Box::new(expr), op, Box::new(right));
+        }
+
+        Ok(expr)
+    }
+
+    fn logical_and(&mut self) -> Result<Expression, ParserError> {
+        let mut expr = self.equality()?;
+
+        while self.matches_token(vec![TokenType::And]) {
+            let op = self.previous();
+            let right = self.equality()?;
+            expr = Expression::Logical(Box::new(expr), op, Box::new(right));
+        }
+
+        Ok(expr)
+    }
+
     fn assignment(&mut self) -> Result<Expression, ParserError> {
-        let expr = self.equality()?;
+        let expr = self.logical_or()?;
 
         if self.matches_token(vec![TokenType::Equal]) {
             let equals = self.previous();

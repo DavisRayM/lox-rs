@@ -5,6 +5,7 @@ use crate::token::{self, Literal, Token};
 #[derive(Debug, Clone)]
 pub enum Expression {
     Binary(Box<Expression>, Token, Box<Expression>),
+    Logical(Box<Expression>, Token, Box<Expression>),
     Group(Box<Expression>),
     Literal(token::Literal),
     Unary(Token, Box<Expression>),
@@ -34,7 +35,7 @@ impl Expression {
             Self::Assignment(name, expr) => {
                 format!("({} = {})", name.lexeme, expr.display_text())
             }
-            Self::Binary(left, op, right) => {
+            Self::Binary(left, op, right) | Self::Logical(left, op, right) => {
                 format!(
                     "({} {} {})",
                     op.lexeme,

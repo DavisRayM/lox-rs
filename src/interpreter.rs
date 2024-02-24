@@ -36,6 +36,14 @@ impl<T: io::Write> Interpreter<T> {
 
     fn evaluate_statement(&mut self, stmt: &Statement) -> Result<(), RuntimeError> {
         match stmt {
+            Statement::If(expr, then_block, else_block) => {
+                let condition = self.evaluate_expression(expr)?;
+                if self.is_truthy(&condition) {
+                    self.evaluate_statement(then_block)?;
+                } else if let Some(else_expr) = else_block {
+                    self.evaluate_statement(else_expr)?;
+                }
+            }
             Statement::Print(expr) => {
                 let val = self.evaluate_expression(expr)?;
                 self.print_to_output(val)?;
@@ -74,6 +82,16 @@ impl<T: io::Write> Interpreter<T> {
         Ok(())
     }
 
+    fn is_truthy(&mut self, literal: &Literal) -> bool {
+        if *literal == Literal::None {
+            return false;
+        } else if let Literal::Boolean(val) = literal {
+            return *val;
+        }
+
+        true
+    }
+
     fn evaluate_expression(&mut self, expr: &Expression) -> Result<Literal, RuntimeError> {
         match expr {
             Expression::Variable(name) => self.env.lock().unwrap().get(&name.lexeme),
@@ -99,19 +117,24 @@ impl<T: io::Write> Interpreter<T> {
                             })
                         }
                     }
-                    TokenType::Bang => {
-                        if let Literal::Boolean(b) = right {
-                            Ok(Literal::Boolean(!b))
-                        } else {
-                            Err(RuntimeError {
-                                cause: "! operator can only be used on boolean values.".to_string(),
-                            })
-                        }
-                    }
+                    TokenType::Bang => Ok(Literal::Boolean(!self.is_truthy(&right))),
                     _ => Err(RuntimeError {
                         cause: format!("unexpected operator {:?}", op.token_type),
                     }),
                 }
+            }
+            Expression::Logical(left, op, right) => {
+                let left = self.evaluate_expression(left)?;
+
+                if op.token_type == TokenType::Or {
+                    if self.is_truthy(&left) {
+                        return Ok(left);
+                    }
+                } else if !self.is_truthy(&left) {
+                    return Ok(left);
+                }
+
+                self.evaluate_expression(right)
             }
             Expression::Binary(left, op, right) => {
                 let left = self.evaluate_expression(left)?;
