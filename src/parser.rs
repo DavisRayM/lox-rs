@@ -12,11 +12,12 @@
 //! declaration    → varDecl
 //!                  | statement ;
 //! varDecl        → "var" IDENTIFIER ( "=" expression )? ";" ;
-//! statement      → varStmt
-//!                  | exprStmt
-//!                  | block
+//! statement      → exprStmt
 //!                  | printStmt
-//!                  | ifStmt ;
+//!                  | ifStmt
+//!                  | whileStmt
+//!                  | block ;
+//! whileStmt      → "while" "(" expression ")" statement ;
 //! ifStmt         → "if" "(" expressiong ")" statement ("else" statement)? ;
 //! printStmt      → "print" expression ";" ;
 //! exprStmt       → expression ";" ;
@@ -31,6 +32,9 @@
 //! factor         → unary ( ( "/" | "*" ) unary )* ;
 //! unary          → ( "!" | "-" ) unary
 //!                  | primary ;
+//! forStmt        → "for" "(" ( varDecl | exprStmt | ";" )
+//!                  expression? ";"
+//!                  expression? ")" statement ;
 //! primary        → NUMBER
 //!                  | STRING
 //!                  | "true"
@@ -97,22 +101,9 @@ impl<T: io::Write> Parser<T> {
     fn declaration(&mut self) -> Result<Statement, ParserError> {
         if self.matches_token(vec![TokenType::Var]) {
             self.var_declaration()
-        } else if self.matches_token(vec![TokenType::LeftBrace]) {
-            self.block()
         } else {
             self.statement()
         }
-    }
-
-    fn block(&mut self) -> Result<Statement, ParserError> {
-        let mut stmts = Vec::new();
-
-        while !self.check(&TokenType::RightBrace) && !self.is_at_end() {
-            stmts.push(self.declaration()?);
-        }
-
-        self.consume(TokenType::RightBrace, "expect '}' after block")?;
-        Ok(Statement::Block(stmts))
     }
 
     fn var_declaration(&mut self) -> Result<Statement, ParserError> {
@@ -132,8 +123,81 @@ impl<T: io::Write> Parser<T> {
             return self.print_statement();
         } else if self.matches_token(vec![TokenType::If]) {
             return self.if_statement();
+        } else if self.matches_token(vec![TokenType::For]) {
+            return self.for_statement();
+        } else if self.matches_token(vec![TokenType::While]) {
+            return self.while_statement();
+        } else if self.matches_token(vec![TokenType::LeftBrace]) {
+            return self.block();
         }
         self.expr_statement()
+    }
+
+    fn block(&mut self) -> Result<Statement, ParserError> {
+        let mut stmts = Vec::new();
+
+        while !self.check(&TokenType::RightBrace) && !self.is_at_end() {
+            stmts.push(self.declaration()?);
+        }
+
+        self.consume(TokenType::RightBrace, "expect '}' after block")?;
+        Ok(Statement::Block(stmts))
+    }
+
+    // Desugars a for loop into a while loop; minimal changes required else
+    // where!! Nice!!
+    fn for_statement(&mut self) -> Result<Statement, ParserError> {
+        self.consume(TokenType::LeftParen, "expect '(' after 'for'")?;
+
+        let initializer: Option<Statement>;
+        if self.matches_token(vec![TokenType::Semicolon]) {
+            initializer = None
+        } else if self.matches_token(vec![TokenType::Var]) {
+            initializer = Some(self.var_declaration()?);
+        } else {
+            initializer = Some(self.expr_statement()?);
+        }
+
+        let mut condition: Expression = Expression::Literal(Literal::Boolean(true));
+        if !self.check(&TokenType::Semicolon) {
+            condition = self.expression()?;
+        }
+        self.consume(TokenType::Semicolon, "expect ';' after loop condition")?;
+
+        let mut increment: Option<Expression> = None;
+        if !self.check(&TokenType::RightParen) {
+            increment = Some(self.expression()?);
+        }
+        self.consume(TokenType::RightParen, "expect ')' after 'for' clauses")?;
+        let mut body = self.statement()?;
+
+        // Wrap the body of the for loop and increment function into a block
+        // the interpreter will execute them in that order
+        if let Some(incr) = increment {
+            body = Statement::Block(vec![body, Statement::Expr(incr)]);
+        }
+
+        // Wrap the block created above in a while loop that's executed
+        // as long as the condition is true
+        body = Statement::While(condition, Box::new(body));
+
+        // Lastly, wrap the initializer if any into a block that's only executed
+        // once before the while loop starts. This also takes advantage of the
+        // block context available
+        if let Some(init) = initializer {
+            body = Statement::Block(vec![init, body]);
+        }
+
+        Ok(body)
+    }
+
+    fn while_statement(&mut self) -> Result<Statement, ParserError> {
+        self.consume(TokenType::LeftParen, "expect '(' after while condition")?;
+        let cond = self.expression()?;
+        self.consume(TokenType::RightParen, "expect ')' after while condition")?;
+        let statement = self.statement()?;
+
+        Ok(Statement::While(cond, Box::new(statement)))
     }
 
     fn if_statement(&mut self) -> Result<Statement, ParserError> {
@@ -254,13 +318,14 @@ impl<T: io::Write> Parser<T> {
             expr = expr.literal(self.previous().literal);
         } else if self.matches_token(vec![TokenType::LeftParen]) {
             let group = self.expression()?;
-            self.consume(TokenType::RightParen, "Expect ')' after expression.")?;
+            self.consume(TokenType::RightParen, "expect ')' after expression.")?;
             expr = expr.group(group);
         } else if self.matches_token(vec![TokenType::Identifier]) {
             expr = expr.variable(self.previous());
         } else {
+            eprintln!("{:#?}", self.peek());
             return Err(ParserError {
-                cause: "Expect expression".into(),
+                cause: "expect expression".into(),
             });
         }
 

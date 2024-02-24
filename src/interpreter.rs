@@ -44,6 +44,13 @@ impl<T: io::Write> Interpreter<T> {
                     self.evaluate_statement(else_expr)?;
                 }
             }
+            Statement::While(cond, stmt) => {
+                let mut literal = self.evaluate_expression(cond)?;
+                while self.is_truthy(&literal) {
+                    self.evaluate_statement(stmt)?;
+                    literal = self.evaluate_expression(cond)?;
+                }
+            }
             Statement::Print(expr) => {
                 let val = self.evaluate_expression(expr)?;
                 self.print_to_output(val)?;

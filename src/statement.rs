@@ -10,6 +10,8 @@ pub enum Statement {
     If(Expression, Box<Statement>, Option<Box<Statement>>),
     // Var (name) (expr)?
     Var(Token, Option<Expression>),
+    // While (condition) (statement)
+    While(Expression, Box<Statement>),
     // (statement *)
     Block(Vec<Statement>),
 }
