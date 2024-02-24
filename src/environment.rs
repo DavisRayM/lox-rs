@@ -5,6 +5,7 @@ use std::{
 
 use crate::{errors::RuntimeError, token::Literal};
 
+#[derive(Debug, Clone)]
 pub struct Environment {
     store: HashMap<String, Literal>,
     // Everything related to this is so janky.......
@@ -29,7 +30,7 @@ impl Environment {
     }
 
     pub fn assign(&mut self, k: String, v: Literal) -> Result<(), RuntimeError> {
-        if self.get(&k).is_ok() {
+        if self.store.get(&k).is_some() {
             self.store.insert(k, v);
             return Ok(());
         }
