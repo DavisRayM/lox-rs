@@ -208,9 +208,8 @@ mod test {
     fn environment_tracks_variables() {
         let source = "var a = \"global a\";\nvar b = \"global b\";\nvar c = \"global c\";";
 
-        let mut scanner = Scanner::new(source.trim().into());
-        scanner.run().unwrap();
-        let tokens = scanner.tokens;
+        let scanner = Scanner::new(source.trim().into());
+        let tokens = scanner.run().unwrap();
         eprintln!("{:#?}", tokens);
         let mut parser = Parser::new(tokens, io::stderr(), true);
 
@@ -229,9 +228,8 @@ mod test {
     fn nested_blocks_preserve_env() {
         let source = "var a = \"hello\";\n{\n    var a = \"world\";\n}\n";
 
-        let mut scanner = Scanner::new(source.trim().into());
-        scanner.run().unwrap();
-        let tokens = scanner.tokens;
+        let scanner = Scanner::new(source.trim().into());
+        let tokens = scanner.run().unwrap();
         eprintln!("{:#?}", tokens);
         let mut parser = Parser::new(tokens, io::stderr(), true);
 

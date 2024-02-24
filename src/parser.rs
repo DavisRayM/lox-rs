@@ -666,11 +666,9 @@ mod test {
     #[test]
     fn syntax_tree_parsed_correctly() {
         let source = "(5 * 2) + 1 - 2;".to_string();
-        let mut scanner = Scanner::new(source);
-        scanner.run().unwrap();
-
+        let scanner = Scanner::new(source);
         let sink = io::sink();
-        let mut parser = Parser::new(scanner.tokens, sink, true);
+        let mut parser = Parser::new(scanner.run().unwrap(), sink, true);
         let stmt = parser.parse();
 
         assert_eq!(1, stmt.len());

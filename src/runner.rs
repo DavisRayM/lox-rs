@@ -56,28 +56,21 @@ impl Runner {
     }
 
     fn _run(&mut self, content: &str, strict: bool) -> Result<(), RunnerError> {
-        let mut s = Scanner::new(content.to_string());
-        if let Err(e) = s.run() {
-            println!("{} at {}:{}", e.cause, e.location.line, e.location.column);
-            return Ok(());
-        }
+        let s = Scanner::new(content.to_string());
+        match s.run() {
+            Ok(symbols) => {
+                let mut p = Parser::new(symbols, io::stdout(), strict);
 
-        let mut p = Parser::new(s.tokens, io::stdout(), strict);
-
-        match self.interpreter.interpret(p.parse()) {
-            Ok(_) => (),
-            Err(e) => {
-                // TODO: This seems a bit janky to me...
-                // Should think about how syntax errors are reported
-                // -- Thought about it and this might just depend on whether
-                // -- the runner is on file mode or terminal
-                // -- Terminal users can avoid the panic but file mode
-                // -- users are out of luck
-                eprintln!("{}", e);
+                self.interpreter
+                    .interpret(p.parse())
+                    .map_err(|e| RunnerError {
+                        msg: format!("parse error: {}", e),
+                    })
             }
+            Err(e) => Err(RunnerError {
+                msg: format!("scan error: {}", e),
+            }),
         }
-
-        Ok(())
     }
 
     fn _run_repl(&mut self) -> Result<(), RunnerError> {
@@ -97,7 +90,9 @@ impl Runner {
                 break Ok(());
             }
 
-            self._run(&expr, false)?;
+            if let Err(err) = self._run(&expr, false) {
+                println!("{}", err);
+            }
 
             expr.clear();
         }

@@ -6,13 +6,20 @@ use crate::{
     LocationInfo,
 };
 
-/// Lexical scanner/analyzer
+/// Source code scanner
 ///
-/// Scanner reads through the `source` passed in and extracts `Token`s from the
-/// code
+/// Reads through source code and converts the characters into symbols.
+///
+/// ```
+/// use lox_rs::{Scanner, Token};
+///
+/// let source = String::from("print \"hello world!\";");
+/// let scanner = Scanner::new(source);
+/// let tokens: Vec<Token> = scanner.run().unwrap();
+/// ```
 pub struct Scanner {
     source: Vec<char>,
-    pub tokens: Vec<Token>,
+    tokens: Vec<Token>,
     pub loc: LocationInfo,
 }
 
@@ -48,13 +55,7 @@ impl Scanner {
         }
     }
 
-    pub fn run(&mut self) -> Result<(), ScannerError> {
-        if let Some(last) = self.tokens.last() {
-            if last.token_type == TokenType::Eof {
-                return Ok(());
-            }
-        }
-
+    pub fn run(mut self) -> Result<Vec<Token>, ScannerError> {
         loop {
             // Terminate scanner if theres nothing else to scan
             if self.is_at_end() {
@@ -63,7 +64,7 @@ impl Scanner {
                     TokenType::Eof,
                     TokenBuilder::default().location(self.loc.column, self.loc.line),
                 );
-                break Ok(());
+                break Ok(self.tokens);
             }
 
             self.scan_token()?;
@@ -274,25 +275,17 @@ fn _is_alpha(ch: char) -> bool {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::token::Literal;
+    use crate::Literal;
 
     #[test]
     fn comments_are_discarded() {
         const SOURCE: &str = r#"// much comment such wow
 // i also know how to comment
 (( )){} // here are some tokens!"#;
-        let mut s = Scanner::new(SOURCE.to_string());
-        s.run().unwrap();
+        let s = Scanner::new(SOURCE.to_string());
+        let tokens = s.run().unwrap();
 
-        assert_eq!(s.tokens.len(), 7);
-        assert_eq!(
-            s.loc,
-            LocationInfo {
-                column: SOURCE.len(),
-                line: 3,
-                len: SOURCE.len()
-            }
-        );
+        assert_eq!(tokens.len(), 7);
     }
 
     #[test]
@@ -331,10 +324,10 @@ mod test {
             },
         ];
 
-        let mut s = Scanner::new(SOURCE.to_string());
-        s.run().unwrap();
+        let s = Scanner::new(SOURCE.to_string());
+        let tokens = s.run().unwrap();
 
-        assert_eq!(s.tokens, expected.to_vec());
+        assert_eq!(tokens, expected.to_vec());
     }
 
     #[test]
@@ -393,10 +386,10 @@ mod test {
             },
         ];
 
-        let mut s = Scanner::new(SOURCE.to_string());
-        s.run().unwrap();
+        let s = Scanner::new(SOURCE.to_string());
+        let tokens = s.run().unwrap();
 
-        assert_eq!(s.tokens, expected);
+        assert_eq!(tokens, expected);
     }
 
     #[test]
@@ -445,17 +438,17 @@ mod test {
             },
         ];
 
-        let mut s = Scanner::new(SOURCE.to_string());
-        s.run().unwrap();
+        let s = Scanner::new(SOURCE.to_string());
+        let tokens = s.run().unwrap();
 
-        assert_eq!(s.tokens, expected.to_vec());
+        assert_eq!(tokens, expected.to_vec());
     }
 
     #[test]
     #[should_panic]
     fn unterminated_string_is_caught() {
         const SOURCE: &str = "\"Hello worl";
-        let mut s = Scanner::new(SOURCE.to_string());
+        let s = Scanner::new(SOURCE.to_string());
         s.run().unwrap();
     }
 }
