@@ -4,7 +4,7 @@ use std::{
     path::PathBuf,
 };
 
-use crate::{errors::RunnerError, interpreter::Interpreter, parser::Parser, scanner::Scanner};
+use crate::{errors::RunnerError, Interpreter, Parser, Scanner};
 
 /// Lox interpreter runner
 pub struct Runner {

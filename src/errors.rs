@@ -18,7 +18,7 @@ impl fmt::Display for RunnerError {
 
 /// Scanner encountered an unexpected token definition
 #[derive(Debug, Clone)]
-pub(crate) struct ScannerError {
+pub struct ScannerError {
     pub cause: String,
     pub location: LocationInfo,
 }
@@ -35,7 +35,7 @@ impl fmt::Display for ScannerError {
 
 /// Parser encountered an error while parsing expressions
 #[derive(Debug, Clone)]
-pub(crate) struct ParserError {
+pub struct ParserError {
     pub cause: String,
     // TODO: Add location info
     // pub location: LocationInfo
@@ -52,7 +52,7 @@ impl fmt::Display for ParserError {
 /// Errors encountered during runtime; These usually happen when exceptions
 /// are evaluated
 #[derive(Debug, Clone)]
-pub(crate) struct RuntimeError {
+pub struct RuntimeError {
     pub cause: String,
 }
 

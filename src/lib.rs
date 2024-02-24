@@ -1,17 +1,24 @@
 mod environment;
 pub mod errors;
 mod expression;
-mod interpreter;
-mod parser;
+pub mod interpreter;
+pub mod parser;
 mod runner;
 mod scanner;
 mod statement;
-mod token;
+pub mod token;
 mod token_type;
+pub use expression::Expression;
+pub use interpreter::Interpreter;
+pub use parser::Parser;
 pub use runner::Runner;
+pub use scanner::Scanner;
+pub use statement::Statement;
+pub use token::{Literal, Token};
+pub use token_type::TokenType;
 
 #[derive(Debug, Clone, Copy)]
-pub(crate) struct LocationInfo {
+pub struct LocationInfo {
     column: usize,
     line: usize,
     len: usize,
