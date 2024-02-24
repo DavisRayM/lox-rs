@@ -13,6 +13,7 @@ pub struct Interpreter<T: io::Write> {
     out: T,
     debug: bool,
     env: Arc<Mutex<Environment>>,
+    break_encountered: bool,
 }
 
 impl<T: io::Write> Interpreter<T> {
@@ -21,6 +22,7 @@ impl<T: io::Write> Interpreter<T> {
             out,
             debug: false,
             env: Arc::new(Mutex::new(Environment::new())),
+            break_encountered: false,
         }
     }
 
@@ -36,6 +38,9 @@ impl<T: io::Write> Interpreter<T> {
 
     fn evaluate_statement(&mut self, stmt: &Statement) -> Result<(), RuntimeError> {
         match stmt {
+            Statement::Break => {
+                self.break_encountered = true;
+            }
             Statement::If(expr, then_block, else_block) => {
                 let condition = self.evaluate_expression(expr)?;
                 if self.is_truthy(&condition) {
@@ -46,10 +51,12 @@ impl<T: io::Write> Interpreter<T> {
             }
             Statement::While(cond, stmt) => {
                 let mut literal = self.evaluate_expression(cond)?;
-                while self.is_truthy(&literal) {
+                while self.is_truthy(&literal) && !self.break_encountered {
                     self.evaluate_statement(stmt)?;
                     literal = self.evaluate_expression(cond)?;
                 }
+
+                self.break_encountered = false;
             }
             Statement::Print(expr) => {
                 let val = self.evaluate_expression(expr)?;
@@ -81,7 +88,13 @@ impl<T: io::Write> Interpreter<T> {
                 env.lock().unwrap().enclosing(Arc::clone(&self.env));
                 self.env = Arc::new(env);
 
-                stmts.iter().try_for_each(|s| self.evaluate_statement(s))?;
+                stmts.iter().try_for_each(|s| {
+                    if self.break_encountered {
+                        Ok(())
+                    } else {
+                        self.evaluate_statement(s)
+                    }
+                })?;
                 self.env = previous;
             }
         }

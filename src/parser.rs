@@ -13,6 +13,7 @@
 //!                  | statement ;
 //! varDecl        → "var" IDENTIFIER ( "=" expression )? ";" ;
 //! statement      → exprStmt
+//!                  | break
 //!                  | printStmt
 //!                  | ifStmt
 //!                  | whileStmt
@@ -61,6 +62,7 @@ pub struct Parser<T: io::Write> {
     curr: usize,
     out: T,
     strict: bool,
+    in_loop: bool,
 }
 
 impl<T: io::Write> Parser<T> {
@@ -71,6 +73,7 @@ impl<T: io::Write> Parser<T> {
             curr: 0,
             out,
             strict,
+            in_loop: false,
         }
     }
 
@@ -129,6 +132,14 @@ impl<T: io::Write> Parser<T> {
             return self.while_statement();
         } else if self.matches_token(vec![TokenType::LeftBrace]) {
             return self.block();
+        } else if self.matches_token(vec![TokenType::Break]) {
+            if !self.in_loop {
+                return Err(ParserError {
+                    cause: "break can not be used outside a loop".into(),
+                });
+            }
+            self.consume(TokenType::Semicolon, "expect ';' after break")?;
+            return Ok(Statement::Break);
         }
         self.expr_statement()
     }
@@ -147,6 +158,11 @@ impl<T: io::Write> Parser<T> {
     // Desugars a for loop into a while loop; minimal changes required else
     // where!! Nice!!
     fn for_statement(&mut self) -> Result<Statement, ParserError> {
+        let mut loop_state_set = false;
+        if !self.in_loop {
+            self.in_loop = true;
+            loop_state_set = true;
+        }
         self.consume(TokenType::LeftParen, "expect '(' after 'for'")?;
 
         let initializer: Option<Statement>;
@@ -188,15 +204,26 @@ impl<T: io::Write> Parser<T> {
             body = Statement::Block(vec![init, body]);
         }
 
+        if loop_state_set {
+            self.in_loop = false;
+        }
         Ok(body)
     }
 
     fn while_statement(&mut self) -> Result<Statement, ParserError> {
+        let mut loop_state_set = false;
+        if !self.in_loop {
+            self.in_loop = true;
+            loop_state_set = true;
+        }
         self.consume(TokenType::LeftParen, "expect '(' after while condition")?;
         let cond = self.expression()?;
         self.consume(TokenType::RightParen, "expect ')' after while condition")?;
         let statement = self.statement()?;
 
+        if loop_state_set {
+            self.in_loop = false;
+        }
         Ok(Statement::While(cond, Box::new(statement)))
     }
 

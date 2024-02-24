@@ -16,7 +16,7 @@ pub struct Scanner {
     pub loc: LocationInfo,
 }
 
-const IDENTIFIERS: [(&str, TokenType); 15] = [
+const IDENTIFIERS: [(&str, TokenType); 16] = [
     ("and", TokenType::And),
     ("class", TokenType::Class),
     ("else", TokenType::Else),
@@ -32,6 +32,7 @@ const IDENTIFIERS: [(&str, TokenType); 15] = [
     ("true", TokenType::True),
     ("var", TokenType::Var),
     ("while", TokenType::While),
+    ("break", TokenType::Break),
 ];
 
 impl Scanner {

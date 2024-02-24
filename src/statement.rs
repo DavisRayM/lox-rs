@@ -14,4 +14,5 @@ pub enum Statement {
     While(Expression, Box<Statement>),
     // (statement *)
     Block(Vec<Statement>),
+    Break,
 }
