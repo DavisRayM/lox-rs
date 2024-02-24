@@ -5,12 +5,8 @@ use std::{
 };
 
 use crate::{
-    environment::Environment,
-    errors::{ParserError, RuntimeError},
-    expression::Expression,
-    statement::Statement,
-    token::Literal,
-    token_type::TokenType,
+    environment::Environment, errors::RuntimeError, expression::Expression, statement::Statement,
+    token::Literal, token_type::TokenType,
 };
 
 pub struct Interpreter<T: io::Write> {
@@ -42,16 +38,22 @@ impl<T: io::Write> Interpreter<T> {
         match stmt {
             Statement::Var(name, expr) => {
                 let name = name.lexeme.clone();
+                let mut val = Literal::None;
 
                 if let Some(expr) = expr {
-                    let val = self.evaluate_expression(expr)?;
-                    self.env.lock().unwrap().define(name, val)?;
-                } else {
-                    self.env.lock().unwrap().define(name, Literal::None)?;
+                    val = self.evaluate_expression(expr)?;
                 }
+
+                if self.debug {
+                    self.print_to_output(format!("{} = {}", name, val))?;
+                }
+                self.env.lock().unwrap().define(name, val)?;
             }
             Statement::Expr(expr) => {
-                self.evaluate_expression(expr)?;
+                let res = self.evaluate_expression(expr)?;
+                if self.debug {
+                    self.print_to_output(res)?;
+                }
             }
             Statement::Block(stmts) => {
                 let previous = Arc::clone(&self.env);
@@ -163,7 +165,7 @@ mod test {
         scanner.run().unwrap();
         let tokens = scanner.tokens;
         eprintln!("{:#?}", tokens);
-        let mut parser = Parser::new(tokens, io::stderr());
+        let mut parser = Parser::new(tokens, io::stderr(), true);
 
         let mut intp = Interpreter::new(io::stderr());
         let stmts = parser.parse();
@@ -184,7 +186,7 @@ mod test {
         scanner.run().unwrap();
         let tokens = scanner.tokens;
         eprintln!("{:#?}", tokens);
-        let mut parser = Parser::new(tokens, io::stderr());
+        let mut parser = Parser::new(tokens, io::stderr(), true);
 
         let mut intp = Interpreter::new(io::stderr());
         let stmts = parser.parse();

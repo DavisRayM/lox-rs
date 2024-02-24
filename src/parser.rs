@@ -31,7 +31,7 @@ use crate::{
     errors::ParserError,
     expression::{Expression, ExpressionBuilder},
     statement::Statement,
-    token::{Literal, Token},
+    token::{Literal, Token, TokenBuilder},
     token_type::TokenType,
 };
 
@@ -42,15 +42,17 @@ pub struct Parser<T: io::Write> {
     tokens: Vec<Token>,
     curr: usize,
     out: T,
+    strict: bool,
 }
 
 impl<T: io::Write> Parser<T> {
     /// Create a new parser that can be used to generate an expression tree
-    pub fn new(tokens: Vec<Token>, out: T) -> Self {
+    pub fn new(tokens: Vec<Token>, out: T, strict: bool) -> Self {
         Self {
             tokens,
             curr: 0,
             out,
+            strict,
         }
     }
 
@@ -145,13 +147,17 @@ impl<T: io::Write> Parser<T> {
             return Ok(self.advance());
         }
 
-        Err(ParserError {
-            cause: msg.to_string(),
-        })
+        if !self.strict && _type == TokenType::Semicolon {
+            Ok(TokenBuilder::default().build())
+        } else {
+            Err(ParserError {
+                cause: msg.to_string(),
+            })
+        }
     }
 
     fn expression(&mut self) -> Result<Expression, ParserError> {
-        self.equality()
+        self.assignment()
     }
 
     fn assignment(&mut self) -> Result<Expression, ParserError> {
@@ -348,7 +354,7 @@ mod test {
         scanner.run().unwrap();
 
         let sink = io::sink();
-        let mut parser = Parser::new(scanner.tokens, sink);
+        let mut parser = Parser::new(scanner.tokens, sink, true);
         let stmt = parser.parse();
 
         assert_eq!(1, stmt.len());

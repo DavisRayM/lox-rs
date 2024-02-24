@@ -9,6 +9,7 @@ use crate::{errors::RunnerError, interpreter::Interpreter, parser::Parser, scann
 /// Lox interpreter runner
 pub struct Runner {
     source: Option<PathBuf>,
+    interpreter: Interpreter<io::Stderr>,
 }
 
 impl Runner {
@@ -33,7 +34,10 @@ impl Runner {
             path = Some(p);
         }
 
-        Ok(Runner { source: path })
+        Ok(Runner {
+            source: path,
+            interpreter: Interpreter::new(io::stderr()),
+        })
     }
 
     /// Starts the runner process loop
@@ -45,25 +49,22 @@ impl Runner {
                 let content = fs::read_to_string(source).map_err(|_| RunnerError {
                     msg: "failed to read file content".to_string(),
                 })?;
-                self._run(&content)
+                self._run(&content, true)
             }
             None => self._run_repl(),
         }
     }
 
-    fn _run(&mut self, content: &str) -> Result<(), RunnerError> {
+    fn _run(&mut self, content: &str, strict: bool) -> Result<(), RunnerError> {
         let mut s = Scanner::new(content.to_string());
         if let Err(e) = s.run() {
             println!("{} at {}:{}", e.cause, e.location.line, e.location.column);
             return Ok(());
         }
 
-        let mut p = Parser::new(s.tokens, io::stdout());
-        let stmts = p.parse();
-        let mut intp = Interpreter::new(io::stdout());
-        intp.debug(true);
+        let mut p = Parser::new(s.tokens, io::stdout(), strict);
 
-        match intp.interpret(stmts) {
+        match self.interpreter.interpret(p.parse()) {
             Ok(_) => (),
             Err(e) => {
                 // TODO: This seems a bit janky to me...
@@ -81,6 +82,7 @@ impl Runner {
 
     fn _run_repl(&mut self) -> Result<(), RunnerError> {
         let mut expr: String = String::new();
+        self.interpreter.debug(true);
         loop {
             print!("> ");
             io::stdout().flush().map_err(|_| RunnerError {
@@ -95,7 +97,7 @@ impl Runner {
                 break Ok(());
             }
 
-            self._run(&expr)?;
+            self._run(&expr, false)?;
 
             expr.clear();
         }
