@@ -36,6 +36,10 @@ impl<T: io::Write> Interpreter<T> {
 
     fn evaluate_statement(&mut self, stmt: &Statement) -> Result<(), RuntimeError> {
         match stmt {
+            Statement::Print(expr) => {
+                let val = self.evaluate_expression(expr)?;
+                self.print_to_output(val)?;
+            }
             Statement::Var(name, expr) => {
                 let name = name.lexeme.clone();
                 let mut val = Literal::None;

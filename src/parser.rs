@@ -114,7 +114,16 @@ impl<T: io::Write> Parser<T> {
     }
 
     fn statement(&mut self) -> Result<Statement, ParserError> {
+        if self.matches_token(vec![TokenType::Print]) {
+            return self.print_statement();
+        }
         self.expr_statement()
+    }
+
+    fn print_statement(&mut self) -> Result<Statement, ParserError> {
+        let expr = self.expression()?;
+        self.consume(TokenType::Semicolon, "expected ';' after expression.")?;
+        Ok(Statement::Print(expr))
     }
 
     fn expr_statement(&mut self) -> Result<Statement, ParserError> {

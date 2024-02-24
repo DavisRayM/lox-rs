@@ -9,7 +9,7 @@ use crate::{errors::RunnerError, interpreter::Interpreter, parser::Parser, scann
 /// Lox interpreter runner
 pub struct Runner {
     source: Option<PathBuf>,
-    interpreter: Interpreter<io::Stderr>,
+    interpreter: Interpreter<io::Stdout>,
 }
 
 impl Runner {
@@ -36,7 +36,7 @@ impl Runner {
 
         Ok(Runner {
             source: path,
-            interpreter: Interpreter::new(io::stderr()),
+            interpreter: Interpreter::new(io::stdout()),
         })
     }
 
